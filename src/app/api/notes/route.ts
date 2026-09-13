@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, getAuthUser } from '@/lib/auth';
 import { seedDatabase } from '@/lib/seed';
 
 const noteSchema = z.object({
@@ -26,24 +26,52 @@ const noteSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     await seedDatabase();
+    const user = await getAuthUser(request);
+    const isAdmin = user?.role === 'ADMIN';
+
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
     const subcategory = searchParams.get('subcategory');
     const search = searchParams.get('search');
-    const status = searchParams.get('status');
+    const statusParam = searchParams.get('status');
+    const minPrice = searchParams.get('minPrice');
+    const maxPrice = searchParams.get('maxPrice');
+    const sort = searchParams.get('sort'); // 'newest' | 'price_asc' | 'price_desc' | 'popular'
 
     const where: any = {};
 
+    // CRITICAL SECURITY RULE: Non-admins CANNOT see unpublished notes under any circumstances
+    if (!isAdmin) {
+      where.status = 'ACTIVE';
+    } else if (statusParam) {
+      where.status = statusParam;
+    }
+
     if (category) where.categoryId = category;
     if (subcategory) where.subCategoryId = subcategory;
-    if (status) where.status = status;
+
+    if (minPrice || maxPrice) {
+      where.price = {};
+      if (minPrice) where.price.gte = parseFloat(minPrice);
+      if (maxPrice) where.price.lte = parseFloat(maxPrice);
+    }
 
     if (search) {
       where.OR = [
         { title: { contains: search } },
         { description: { contains: search } },
-        { author: { contains: search } }
+        { author: { contains: search } },
+        { institute: { contains: search } }
       ];
+    }
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (sort === 'price_asc') {
+      orderBy = { price: 'asc' };
+    } else if (sort === 'price_desc') {
+      orderBy = { price: 'desc' };
+    } else if (sort === 'popular') {
+      orderBy = { salesCount: 'desc' };
     }
 
     const notes = await prisma.note.findMany({
@@ -52,7 +80,7 @@ export async function GET(request: NextRequest) {
         category: { select: { id: true, name: true, slug: true } },
         subCategory: { select: { id: true, name: true, slug: true } }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy
     });
 
     const formatted = notes.map((n: any) => ({

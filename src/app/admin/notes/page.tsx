@@ -17,7 +17,9 @@ import {
   AlertCircle,
   Loader2,
   Globe,
-  EyeOff
+  EyeOff,
+  FileCheck,
+  ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -42,7 +44,12 @@ export default function AdminNotesPage() {
   const [status, setStatus] = useState<'ACTIVE' | 'DRAFT' | 'ARCHIVED'>('ACTIVE');
   const [featured, setFeatured] = useState(false);
   const [isBestseller, setIsBestseller] = useState(false);
-  const [pdfFileName, setPdfFileName] = useState('note_document_v1.pdf');
+  
+  // PDF File Upload states
+  const [pdfFileRef, setPdfFileRef] = useState<string>('');
+  const [pdfFileName, setPdfFileName] = useState<string>('');
+  const [isUploadingPdf, setIsUploadingPdf] = useState<boolean>(false);
+  const [uploadStatusMsg, setUploadStatusMsg] = useState<string>('');
   
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -67,7 +74,9 @@ export default function AdminNotesPage() {
     setStatus('ACTIVE');
     setFeatured(false);
     setIsBestseller(false);
-    setPdfFileName('handwritten_notes_final.pdf');
+    setPdfFileRef('');
+    setPdfFileName('');
+    setUploadStatusMsg('');
     setErrorMsg('');
     setIsModalOpen(true);
   };
@@ -87,7 +96,9 @@ export default function AdminNotesPage() {
     setStatus(note.status as any || 'ACTIVE');
     setFeatured(!!note.featured);
     setIsBestseller(!!note.isBestseller);
-    setPdfFileName(`notes_${note.id}.pdf`);
+    setPdfFileRef(note.pdfUrl || '');
+    setPdfFileName(note.pdfUrl ? note.pdfUrl.split('/').pop() || 'document.pdf' : '');
+    setUploadStatusMsg('');
     setErrorMsg('');
     setIsModalOpen(true);
   };
@@ -96,6 +107,51 @@ export default function AdminNotesPage() {
     setCategoryId(newCatId);
     const matchingSub = subcategories.find(s => s.categoryId === newCatId);
     setSubCategoryId(matchingSub?.id || '');
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+      setErrorMsg('Only PDF documents (.pdf) are allowed.');
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      setErrorMsg('File size exceeds 50 MB limit.');
+      return;
+    }
+
+    setIsUploadingPdf(true);
+    setUploadStatusMsg('Encrypting and saving PDF file to server storage...');
+    setErrorMsg('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      setIsUploadingPdf(false);
+
+      if (data.success) {
+        setPdfFileRef(data.fileRef);
+        setPdfFileName(data.originalName);
+        setFileSize(data.fileSize);
+        setUploadStatusMsg(`Uploaded ${data.originalName} (${data.fileSize})`);
+      } else {
+        setErrorMsg(data.error || 'Failed to upload PDF');
+        setUploadStatusMsg('');
+      }
+    } catch (err) {
+      setIsUploadingPdf(false);
+      setErrorMsg('Network error while uploading PDF');
+      setUploadStatusMsg('');
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,7 +180,8 @@ export default function AdminNotesPage() {
         fileSize,
         status,
         featured,
-        isBestseller
+        isBestseller,
+        pdfUrl: pdfFileRef || editingNote.pdfUrl
       });
     } else {
       res = await addNote({
@@ -141,7 +198,7 @@ export default function AdminNotesPage() {
         status,
         featured,
         isBestseller,
-        pdfUrl: `/api/notes/note-demo/pdf`
+        pdfUrl: pdfFileRef || `/api/notes/note-demo/pdf`
       });
     }
 
@@ -186,7 +243,7 @@ export default function AdminNotesPage() {
   return (
     <AdminLayout
       title="Notes Library & Document Uploads"
-      subtitle="Publish new PDF note packages, edit pricing, manage publication status, and view library inventory."
+      subtitle="Publish new PDF note packages, upload private PDF files, edit pricing, and manage publication status."
       actionButton={{
         label: 'Upload New PDF Note',
         onClick: handleOpenAddModal,
@@ -360,6 +417,45 @@ export default function AdminNotesPage() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              
+              {/* PDF File Uploader Box */}
+              <div className="bg-slate-950 border border-dashed border-slate-700 rounded-2xl p-5 text-center space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mx-auto">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white">Upload Private PDF Document</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Select note PDF file (Max 50MB). Stored securely outside public directory.
+                  </p>
+                </div>
+
+                <div className="flex justify-center items-center gap-3">
+                  <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors shadow-md inline-flex items-center gap-1.5">
+                    {isUploadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    <span>{isUploadingPdf ? 'Uploading...' : 'Choose PDF File'}</span>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={handleFileUpload}
+                      disabled={isUploadingPdf}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {uploadStatusMsg && (
+                  <div className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 py-1.5 px-3 rounded-lg border border-emerald-500/20 inline-block">
+                    ✓ {uploadStatusMsg}
+                  </div>
+                )}
+                {pdfFileRef && (
+                  <div className="text-[10px] text-slate-500 font-mono truncate max-w-md mx-auto">
+                    Storage Ref: {pdfFileRef}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                   Note Document Title
@@ -534,8 +630,8 @@ export default function AdminNotesPage() {
               <div className="pt-4 flex gap-2 border-t border-slate-800">
                 <button
                   type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                  disabled={isSubmitting || isUploadingPdf}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>{editingNote ? 'Save Changes' : 'Publish Note Document'}</span>

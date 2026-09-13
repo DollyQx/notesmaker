@@ -20,13 +20,14 @@ import {
   Zap,
   BookOpen,
   Sparkles,
-  Loader2
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 export default function NoteDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { getNoteById } = useData();
+  const { getNoteById, isLoading } = useData();
   const { user, hasPurchased, unlockNote } = useAuth();
 
   const note = getNoteById(id);
@@ -34,21 +35,46 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
 
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [purchaseError, setPurchaseError] = useState('');
 
-  if (!note) {
+  // Security Check: Deny student access to unpublished notes
+  const isDenied = note && note.status !== 'ACTIVE' && user?.role !== 'ADMIN';
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-50">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center p-6 text-center">
+          <div className="space-y-3">
+            <Sparkles className="w-8 h-8 text-indigo-600 animate-spin mx-auto" />
+            <p className="text-xs text-gray-500 font-medium">Fetching note details from database...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!note || isDenied) {
     return (
       <div className="min-h-screen flex flex-col bg-slate-50">
         <Navbar />
         <div className="flex-1 flex items-center justify-center p-6 text-center">
           <div className="max-w-md bg-white p-8 rounded-3xl border border-gray-200 shadow-xl space-y-4">
-            <FileText className="w-12 h-12 text-gray-400 mx-auto" />
-            <h2 className="text-lg font-bold text-gray-900">Note Not Found</h2>
-            <p className="text-xs text-gray-500">The note you are looking for does not exist or has been removed.</p>
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+              <FileText className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900">Note Unavailable</h2>
+            <p className="text-xs text-gray-500">
+              {isDenied
+                ? 'This note is currently unlisted or in draft status.'
+                : 'The note you are looking for does not exist or has been removed.'}
+            </p>
             <Link
               href="/notes"
-              className="inline-block bg-indigo-600 text-white text-xs font-bold px-5 py-2.5 rounded-xl"
+              className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-xs transition-colors"
             >
-              Browse Notes Library
+              Browse Published Marketplace
             </Link>
           </div>
         </div>
@@ -67,15 +93,16 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
       return;
     }
 
+    setPurchaseError('');
     setIsPurchasing(true);
     const res = await unlockNote(note.id);
     setIsPurchasing(false);
-    setShowUnlockModal(false);
 
     if (res.success) {
+      setShowUnlockModal(false);
       router.push(`/my-notes/${note.id}/read`);
     } else {
-      alert(res.error || 'Failed to unlock note');
+      setPurchaseError(res.error || 'Failed to complete unlock purchase');
     }
   };
 
@@ -89,7 +116,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
           <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
             <Link href="/" className="hover:text-white">Home</Link>
             <span>/</span>
-            <Link href="/notes" className="hover:text-white">Notes</Link>
+            <Link href="/notes" className="hover:text-white">Marketplace</Link>
             <span>/</span>
             <span className="text-indigo-400 font-bold truncate max-w-xs">{note.categoryName}</span>
           </div>
@@ -101,6 +128,15 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
             <span className="bg-slate-800 text-slate-300 text-[11px] font-semibold px-3 py-1 rounded-full border border-slate-700">
               {note.subCategoryName}
             </span>
+            {note.status === 'ACTIVE' ? (
+              <span className="bg-emerald-500/20 text-emerald-300 text-[10px] font-bold px-2.5 py-0.5 rounded border border-emerald-500/30">
+                Verified Published
+              </span>
+            ) : (
+              <span className="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2.5 py-0.5 rounded border border-amber-500/30">
+                Draft / Admin Mode
+              </span>
+            )}
             {note.isBestseller && (
               <span className="bg-amber-400 text-amber-950 text-[10px] font-extrabold px-2.5 py-0.5 rounded-md uppercase tracking-wider">
                 Bestseller
@@ -116,7 +152,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
             <div className="flex items-center gap-1 text-amber-400 font-bold">
               <Star className="w-4 h-4 fill-amber-400" />
               <span>{note.rating || 4.9}</span>
-              <span className="text-slate-400">({note.reviewsCount || 120} reviews)</span>
+              <span className="text-slate-400">({note.reviewsCount || 140} reviews)</span>
             </div>
             <span>•</span>
             <div className="flex items-center gap-1 text-slate-300">
@@ -174,7 +210,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                   Sample Note Chapter Preview
                 </h3>
                 <span className="text-xs text-indigo-600 font-semibold bg-indigo-50 px-2.5 py-1 rounded-full">
-                  Free 1-Page Sample
+                  Free Sample Page
                 </span>
               </div>
 
@@ -184,10 +220,10 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                   <span>PAGE 1 OF {note.pages}</span>
                 </div>
                 <div className="whitespace-pre-line text-slate-200">
-                  {note.sampleText || `TOPIC 1: FUNDAMENTALS & EXAM SHORTCUTS\n\n1. Standard Definitions:\n- High-yield topics condensed for quick revision before exam.\n- Memory tricks & flowchart steps included for 10-mark long answers.\n\n2. Previous Year Solved Trends:\n- Frequently asked 5-star concepts summarized.`}
+                  {note.sampleText || `TOPIC 1: FUNDAMENTALS & HIGH-YIELD CONCEPTS\n\n1. Core Formulas & Theorems:\n- Step-by-step memory shortcuts and diagrams for quick revision.\n- High probability exam questions highlighted with star tags.\n\n2. Previous Year Trends:\n- Frequently asked 5-mark and 10-mark answers summarized.`}
                 </div>
                 <div className="pt-4 border-t border-slate-800 text-center text-slate-400 text-[11px] font-sans">
-                  🔒 Unlock full {note.pages}-page document in integrated PDF reader below.
+                  🔒 Unlock complete {note.pages}-page document in web PDF reader after purchase.
                 </div>
               </div>
             </div>
@@ -199,9 +235,17 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
             <div className="sticky top-24 bg-white p-6 sm:p-8 rounded-3xl border border-gray-200 shadow-xl space-y-6">
               
               <div className="space-y-2">
-                <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md">
-                  Digital Access Pass
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md">
+                    Digital Access Pass
+                  </span>
+                  {isUnlocked && (
+                    <span className="bg-emerald-50 text-emerald-700 text-[11px] font-bold px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Purchased
+                    </span>
+                  )}
+                </div>
+
                 <div className="flex items-baseline gap-2 pt-1">
                   <span className="text-3xl font-extrabold text-gray-900">₹{note.price}</span>
                   {note.originalPrice && (
@@ -219,6 +263,14 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
               {/* Note Details Meta */}
               <div className="space-y-3 pt-3 border-t border-gray-100 text-xs text-gray-700">
                 <div className="flex justify-between py-1">
+                  <span className="text-gray-500">Category:</span>
+                  <span className="font-bold text-gray-900">{note.categoryName}</span>
+                </div>
+                <div className="flex justify-between py-1 border-t border-gray-50">
+                  <span className="text-gray-500">Sub-Category:</span>
+                  <span className="font-bold text-gray-900">{note.subCategoryName}</span>
+                </div>
+                <div className="flex justify-between py-1 border-t border-gray-50">
                   <span className="text-gray-500">Document Length:</span>
                   <span className="font-bold text-gray-900">{note.pages} Pages</span>
                 </div>
@@ -231,7 +283,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                   <span className="font-bold text-gray-900">{note.fileSize}</span>
                 </div>
                 <div className="flex justify-between py-1 border-t border-gray-50">
-                  <span className="text-gray-500">Total Enrolled:</span>
+                  <span className="text-gray-500">Students Enrolled:</span>
                   <span className="font-bold text-gray-900">{note.salesCount}+ Students</span>
                 </div>
               </div>
@@ -240,9 +292,10 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
               {isUnlocked ? (
                 <Link
                   href={`/my-notes/${note.id}/read`}
-                  className="w-full block text-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-3.5 rounded-xl shadow-lg transition-colors"
+                  className="w-full block text-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-3.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
                 >
-                  Read Note PDF Now
+                  <BookOpen className="w-4 h-4" />
+                  <span>Read Note PDF Now</span>
                 </Link>
               ) : (
                 <button
@@ -256,7 +309,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3.5 rounded-xl shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
                 >
                   <Zap className="w-4 h-4 fill-white" />
-                  <span>Unlock Note (₹{note.price})</span>
+                  <span>Purchase & Unlock Note (₹{note.price})</span>
                 </button>
               )}
 
@@ -267,7 +320,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                 </div>
                 <p className="text-[11px] font-bold text-gray-800">100% Instant Online Access Guarantee</p>
                 <p className="text-[10px] text-gray-500 leading-tight">
-                  No waiting. Read immediately on any phone, tablet or desktop after purchase.
+                  No waiting. Read immediately on any device after instant digital unlock.
                 </p>
               </div>
 
@@ -277,19 +330,26 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* Unlock / Purchase Modal */}
+      {/* Purchase Modal */}
       {showUnlockModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-gray-100">
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
               <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                Confirm Digital Unlock
+                Confirm Purchase Unlock
               </h3>
               <button onClick={() => setShowUnlockModal(false)} className="text-gray-400 hover:text-gray-600">
                 ✕
               </button>
             </div>
+
+            {purchaseError && (
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{purchaseError}</span>
+              </div>
+            )}
 
             <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
               <p className="text-xs font-bold text-indigo-950 line-clamp-1">{note.title}</p>

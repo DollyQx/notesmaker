@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { requireAdmin } from '@/lib/auth';
+import { requireAdmin, getAuthUser } from '@/lib/auth';
 
 const updateNoteSchema = z.object({
   title: z.string().min(3).optional(),
@@ -25,6 +25,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const user = await getAuthUser(request);
+    const isAdmin = user?.role === 'ADMIN';
+
     const note = await prisma.note.findUnique({
       where: { id },
       include: {
@@ -35,6 +38,11 @@ export async function GET(
 
     if (!note) {
       return NextResponse.json({ success: false, error: 'Note not found' }, { status: 404 });
+    }
+
+    // CRITICAL SECURITY RULE: Deny student access to unpublished notes
+    if (!isAdmin && note.status !== 'ACTIVE') {
+      return NextResponse.json({ success: false, error: 'Note not found or unavailable' }, { status: 404 });
     }
 
     return NextResponse.json({

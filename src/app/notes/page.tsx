@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import NoteCard from '@/components/NoteCard';
 import { useData } from '@/context/DataContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   Search,
   Filter,
@@ -13,22 +14,43 @@ import {
   X,
   BookOpen,
   ArrowUpDown,
-  Sparkles
+  Sparkles,
+  RotateCcw,
+  CheckCircle2
 } from 'lucide-react';
 
 function NotesContent() {
   const searchParams = useSearchParams();
-  const initialCategory = searchParams.get('category') || 'all';
-  const initialSearch = searchParams.get('search') || '';
+  const router = useRouter();
+  const { user } = useAuth();
+  const { notes, categories, subcategories, isLoading } = useData();
 
-  const { notes, categories, subcategories } = useData();
+  const paramCategory = searchParams.get('category') || 'all';
+  const paramSubCategory = searchParams.get('subcategory') || 'all';
+  const paramSearch = searchParams.get('search') || '';
 
-  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
-  const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState<string>(initialSearch);
+  const [selectedCategory, setSelectedCategory] = useState<string>(paramCategory);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>(paramSubCategory);
+  const [searchTerm, setSearchTerm] = useState<string>(paramSearch);
   const [priceFilter, setPriceFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('popular');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
+
+  // Sync state if URL query parameters change
+  useEffect(() => {
+    if (searchParams.get('category')) setSelectedCategory(searchParams.get('category')!);
+    if (searchParams.get('subcategory')) setSelectedSubCategory(searchParams.get('subcategory')!);
+    if (searchParams.get('search') !== null) setSearchTerm(searchParams.get('search')!);
+  }, [searchParams]);
+
+  // CRITICAL SECURITY RULE: Filter out unpublished notes for students
+  const publishedNotes = useMemo(() => {
+    return notes.filter((n) => {
+      // If user is ADMIN, show all notes. Otherwise, only ACTIVE notes.
+      if (user?.role === 'ADMIN') return true;
+      return n.status === 'ACTIVE' || !n.status;
+    });
+  }, [notes, user]);
 
   // Subcategories filtered by selected parent category
   const availableSubCategories = useMemo(() => {
@@ -38,7 +60,7 @@ function NotesContent() {
 
   // Main filter pipeline
   const filteredNotes = useMemo(() => {
-    return notes.filter(note => {
+    return publishedNotes.filter(note => {
       // Category filter
       if (selectedCategory !== 'all' && note.categoryId !== selectedCategory) {
         return false;
@@ -54,8 +76,9 @@ function NotesContent() {
         const matchesDesc = note.description.toLowerCase().includes(query);
         const matchesAuthor = note.author.toLowerCase().includes(query);
         const matchesCategory = note.categoryName.toLowerCase().includes(query);
+        const matchesSub = note.subCategoryName?.toLowerCase().includes(query);
         const matchesTags = note.tags?.some(t => t.toLowerCase().includes(query));
-        if (!matchesTitle && !matchesDesc && !matchesAuthor && !matchesCategory && !matchesTags) {
+        if (!matchesTitle && !matchesDesc && !matchesAuthor && !matchesCategory && !matchesSub && !matchesTags) {
           return false;
         }
       }
@@ -66,13 +89,16 @@ function NotesContent() {
 
       return true;
     }).sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      }
       if (sortBy === 'popular') return (b.salesCount || 0) - (a.salesCount || 0);
       if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
       if (sortBy === 'price-low') return a.price - b.price;
       if (sortBy === 'price-high') return b.price - a.price;
       return 0;
     });
-  }, [notes, selectedCategory, selectedSubCategory, searchTerm, priceFilter, sortBy]);
+  }, [publishedNotes, selectedCategory, selectedSubCategory, searchTerm, priceFilter, sortBy]);
 
   const clearAllFilters = () => {
     setSelectedCategory('all');
@@ -80,6 +106,7 @@ function NotesContent() {
     setSearchTerm('');
     setPriceFilter('all');
     setSortBy('popular');
+    router.push('/notes');
   };
 
   return (
@@ -92,13 +119,13 @@ function NotesContent() {
           <div>
             <div className="flex items-center gap-2 text-xs text-indigo-400 font-bold uppercase tracking-wider mb-2">
               <BookOpen className="w-4 h-4" />
-              <span>Notes Marketplace</span>
+              <span>Student Notes Marketplace</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Explore Handwritten Digital Notes
+              Explore Published Handwritten Digital Notes
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
-              Verified topper notes across Computer Science, Engineering, UPSC, Medical, and CA exams.
+              Instant access to high-yield notes, mind maps, and pyq solutions. Read securely in online PDF viewer.
             </p>
           </div>
 
@@ -108,7 +135,7 @@ function NotesContent() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by subject, author, tags..."
+              placeholder="Search title, subject, author..."
               className="w-full pl-9 pr-4 py-2.5 bg-slate-800 text-slate-100 placeholder-slate-400 border border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -131,8 +158,9 @@ function NotesContent() {
                 {(selectedCategory !== 'all' || selectedSubCategory !== 'all' || searchTerm || priceFilter !== 'all') && (
                   <button
                     onClick={clearAllFilters}
-                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
                   >
+                    <RotateCcw className="w-3 h-3" />
                     Reset
                   </button>
                 )}
@@ -152,7 +180,7 @@ function NotesContent() {
                         : 'text-gray-700 hover:bg-gray-50'
                     }`}
                   >
-                    All Categories ({notes.length})
+                    All Categories ({publishedNotes.length})
                   </button>
                   {categories.map((cat) => (
                     <button
@@ -166,7 +194,7 @@ function NotesContent() {
                     >
                       <span className="truncate">{cat.name}</span>
                       <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
-                        {notes.filter(n => n.categoryId === cat.id).length}
+                        {publishedNotes.filter(n => n.categoryId === cat.id).length}
                       </span>
                     </button>
                   ))}
@@ -254,7 +282,7 @@ function NotesContent() {
               <div className="flex items-center gap-2 text-xs font-semibold text-gray-600">
                 <span>Showing <strong className="text-gray-900">{filteredNotes.length}</strong> notes</span>
                 {searchTerm && (
-                  <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md text-[11px]">
+                  <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md text-[11px] font-bold">
                     &quot;{searchTerm}&quot;
                   </span>
                 )}
@@ -278,6 +306,7 @@ function NotesContent() {
                     className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="popular">Most Popular</option>
+                    <option value="newest">Newest First</option>
                     <option value="rating">Highest Rated</option>
                     <option value="price-low">Price: Low to High</option>
                     <option value="price-high">Price: High to Low</option>
@@ -286,19 +315,30 @@ function NotesContent() {
               </div>
             </div>
 
-            {/* Notes Grid */}
-            {filteredNotes.length > 0 ? (
+            {/* Notes Grid or Skeleton Loading */}
+            {isLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {[1, 2, 3, 4, 5, 6].map((idx) => (
+                  <div key={idx} className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4 animate-pulse">
+                    <div className="h-32 bg-gray-200 rounded-xl" />
+                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                    <div className="h-3 bg-gray-200 rounded w-1/2" />
+                    <div className="h-8 bg-gray-200 rounded-xl pt-2" />
+                  </div>
+                ))}
+              </div>
+            ) : filteredNotes.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                 {filteredNotes.map((note) => (
                   <NoteCard key={note.id} note={note} />
                 ))}
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center space-y-4">
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center space-y-4 shadow-sm">
                 <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
                   <Search className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900">No matching notes found</h3>
+                <h3 className="text-lg font-bold text-gray-900">No matching published notes found</h3>
                 <p className="text-xs text-gray-500 max-w-md mx-auto">
                   We couldn&apos;t find any notes matching your search or filters. Try resetting filters or searching for another subject.
                 </p>

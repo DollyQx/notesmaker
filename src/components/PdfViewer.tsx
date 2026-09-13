@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   Lock,
   RotateCcw,
-  BookOpen
+  BookOpen,
+  AlertTriangle
 } from 'lucide-react';
 
 interface PdfViewerProps {
@@ -25,20 +26,23 @@ export default function PdfViewer({ note }: PdfViewerProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const totalPages = note.pages || 45;
+  const [viewMode, setViewMode] = useState<'embedded' | 'canvas'>('embedded');
 
-  // Security measure: Prevent standard print attempt
+  const totalPages = note.pages || 45;
+  const pdfStreamUrl = `/api/notes/${note.id}/pdf#toolbar=0&navpanes=0&scrollbar=1&statusbar=0&messages=0`;
+
+  // Security measure: Prevent standard print / save hotkeys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Prevent Ctrl+P or Cmd+P
-      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
         e.preventDefault();
-        alert('Printing and downloading are disabled to protect copyright.');
+        alert('Printing and downloading are disabled in protected reader mode.');
       }
       // Prevent Ctrl+S or Cmd+S
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        alert('Saving is disabled for digital notes.');
+        alert('File saving is disabled for digital notes.');
       }
     };
 
@@ -77,8 +81,8 @@ export default function PdfViewer({ note }: PdfViewerProps) {
     <div
       id="pdf-reader-container"
       onContextMenu={(e) => e.preventDefault()}
-      className={`bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col ${
-        isFullscreen ? 'fixed inset-0 z-50 rounded-none border-none' : 'h-[82vh]'
+      className={`bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col ${
+        isFullscreen ? 'fixed inset-0 z-50 rounded-none border-none' : 'h-[85vh]'
       }`}
     >
       {/* Top PDF Toolbar - NO DOWNLOAD BUTTON */}
@@ -86,7 +90,7 @@ export default function PdfViewer({ note }: PdfViewerProps) {
         
         {/* Left: Document Info */}
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
+          <div className="p-2 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
             <BookOpen className="w-4 h-4" />
           </div>
           <div>
@@ -94,7 +98,7 @@ export default function PdfViewer({ note }: PdfViewerProps) {
             <div className="flex items-center gap-2 text-[10px] text-slate-400">
               <span className="flex items-center gap-1 text-emerald-400 font-semibold">
                 <ShieldCheck className="w-3 h-3" />
-                Verified Purchase License
+                Verified License
               </span>
               <span>•</span>
               <span>{note.author}</span>
@@ -139,7 +143,7 @@ export default function PdfViewer({ note }: PdfViewerProps) {
           </button>
         </div>
 
-        {/* Right Controls: Zoom & View Security Notice */}
+        {/* Right Controls: Zoom, View Toggle & Fullscreen */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800 text-xs">
             <button
@@ -167,104 +171,109 @@ export default function PdfViewer({ note }: PdfViewerProps) {
           </div>
 
           <button
+            onClick={() => setViewMode(v => v === 'embedded' ? 'canvas' : 'embedded')}
+            className="px-2.5 py-1 text-[11px] font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+            title="Toggle Reader Mode"
+          >
+            {viewMode === 'embedded' ? 'Reading Mode' : 'PDF View'}
+          </button>
+
+          <button
             onClick={toggleFullscreen}
             className="p-2 text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 rounded-xl border border-slate-800 transition-colors"
             title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
-
-          <div className="hidden xl:flex items-center gap-1.5 text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2.5 py-1.5 rounded-xl">
-            <Lock className="w-3 h-3 text-amber-400" />
-            <span>Protected Reader Mode</span>
-          </div>
         </div>
       </div>
 
-      {/* Main Document Display Canvas Area */}
-      <div className="flex-1 overflow-auto bg-slate-950 p-6 flex justify-center relative select-none">
+      {/* Security Disclaimer Notice Bar */}
+      <div className="bg-slate-950 px-4 py-1.5 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 font-mono select-none">
+        <div className="flex items-center gap-1.5 text-amber-400">
+          <Lock className="w-3 h-3" />
+          <span>Protected Stream Active • Direct download actions hidden</span>
+        </div>
+        <div className="hidden sm:block text-slate-500">
+          Licensed to {user?.name || 'Student'} ({user?.email || 'authenticated'})
+        </div>
+      </div>
+
+      {/* Main Document Display Canvas / Iframe Container */}
+      <div className="flex-1 overflow-auto bg-slate-950 p-4 sm:p-6 flex justify-center relative select-none">
         
-        {/* Document Page Box */}
-        <div
-          style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
-          className="transition-transform duration-150 w-full max-w-3xl bg-white text-slate-900 rounded-xl shadow-2xl p-8 sm:p-12 relative min-h-[850px] flex flex-col justify-between"
-        >
-          {/* Security Watermark Background */}
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden opacity-5 z-0">
-            <div className="rotate-[-35deg] text-center font-extrabold text-slate-900 text-3xl sm:text-5xl tracking-widest leading-relaxed">
-              LICENSED TO {user?.name.toUpperCase() || 'STUDENT'}<br />
-              {user?.email || 'STUDENT@NOTESMAKER.IN'}<br />
-              CONFIDENTIAL • DO NOT DISTRIBUTE
-            </div>
+        {viewMode === 'embedded' ? (
+          <div className="w-full h-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 relative">
+            <iframe
+              src={pdfStreamUrl}
+              className="w-full h-full border-0"
+              title={`PDF Reader - ${note.title}`}
+            />
           </div>
-
-          {/* Header of PDF page */}
-          <div className="border-b border-gray-200 pb-4 mb-6 flex justify-between items-center relative z-10">
-            <div>
-              <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider">{note.categoryName}</span>
-              <h3 className="text-lg font-bold text-gray-900">{note.title}</h3>
-            </div>
-            <span className="text-xs text-gray-400 font-mono">Page {currentPage} of {totalPages}</span>
-          </div>
-
-          {/* Simulated Note Content Body */}
-          <div className="space-y-6 text-sm text-gray-800 leading-relaxed relative z-10 flex-1">
-            <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 font-mono text-xs text-indigo-950">
-              <span className="font-bold uppercase text-indigo-700">Topic Summary • Section {currentPage}</span>
-              <p className="mt-1">{note.subCategoryName} - Handwritten High-Yield Key Points</p>
-            </div>
-
-            {note.sampleText ? (
-              <div className="whitespace-pre-line font-sans text-slate-800 leading-relaxed bg-gray-50/80 p-5 rounded-xl border border-gray-200">
-                {note.sampleText}
+        ) : (
+          /* Document Page Box Canvas Fallback */
+          <div
+            style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top center' }}
+            className="transition-transform duration-150 w-full max-w-3xl bg-white text-slate-900 rounded-2xl shadow-2xl p-8 sm:p-12 relative min-h-[850px] flex flex-col justify-between"
+          >
+            {/* Watermark Overlay */}
+            <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden opacity-5 z-0">
+              <div className="rotate-[-35deg] text-center font-extrabold text-slate-900 text-3xl sm:text-5xl tracking-widest leading-relaxed">
+                LICENSED TO {user?.name.toUpperCase() || 'STUDENT'}<br />
+                {user?.email || 'STUDENT@NOTESMAKER.IN'}<br />
+                CONFIDENTIAL • DO NOT DISTRIBUTE
               </div>
-            ) : (
-              <div className="space-y-4">
-                <p className="font-medium text-gray-900">
-                  1. Core Definition & Theoretical Foundations (Page {currentPage})
-                </p>
-                <p className="text-gray-700">
-                  In modern curricula, this subject explores fundamental principles requiring precise conceptual clarity.
-                  Key formulas and memory triggers are highlighted below for examination quick recall.
-                </p>
+            </div>
 
-                <div className="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs shadow-inner">
-                  {`// Core Exam Formula / Standard Blueprint (Page ${currentPage})
+            {/* Header of PDF page */}
+            <div className="border-b border-gray-200 pb-4 mb-6 flex justify-between items-center relative z-10">
+              <div>
+                <span className="text-[10px] font-extrabold text-indigo-600 uppercase tracking-wider">{note.categoryName}</span>
+                <h3 className="text-lg font-bold text-gray-900">{note.title}</h3>
+              </div>
+              <span className="text-xs text-gray-400 font-mono">Page {currentPage} of {totalPages}</span>
+            </div>
+
+            {/* Note Content */}
+            <div className="space-y-6 text-sm text-gray-800 leading-relaxed relative z-10 flex-1">
+              <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 font-mono text-xs text-indigo-950">
+                <span className="font-bold uppercase text-indigo-700">Topic Summary • Section {currentPage}</span>
+                <p className="mt-1">{note.subCategoryName} - Handwritten High-Yield Key Points</p>
+              </div>
+
+              {note.sampleText ? (
+                <div className="whitespace-pre-line font-sans text-slate-800 leading-relaxed bg-gray-50/80 p-5 rounded-xl border border-gray-200">
+                  {note.sampleText}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="font-medium text-gray-900">
+                    1. Core Definition & Theoretical Foundations (Page {currentPage})
+                  </p>
+                  <p className="text-gray-700">
+                    In modern curricula, this subject explores fundamental principles requiring precise conceptual clarity.
+                    Key formulas and memory triggers are highlighted below for examination quick recall.
+                  </p>
+
+                  <div className="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs shadow-inner">
+                    {`// Core Exam Formula / Standard Blueprint (Page ${currentPage})
 function calculateYield(inputVector) {
   const constant = 3.14159;
   return inputVector.reduce((acc, val) => acc + (val * constant), 0);
 }`}
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <p className="text-gray-700">
-                  2. Practical Application & Frequently Asked Exam Questions:
-                </p>
-                <ul className="list-disc pl-5 space-y-2 text-gray-700">
-                  <li>Analyze the key trade-offs between theoretical models and real-world execution.</li>
-                  <li>Identify the 3 critical failure conditions most common in university semester papers.</li>
-                  <li>Diagram requirements: Ensure all labeled components are clearly drawn with units.</li>
-                </ul>
-              </div>
-            )}
-
-            {/* Simulated Handwritten Diagram / Note Canvas Box */}
-            <div className="mt-6 p-6 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-200/80 text-amber-950">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold uppercase text-amber-800">✍️ Topper Tip / High Yield Note</span>
-                <span className="text-[10px] font-mono text-amber-700">GATE / University Special</span>
-              </div>
-              <p className="text-xs italic leading-relaxed text-amber-900">
-                &quot;Remember to always write the standard assumptions before solving long numerical questions. Professors award up to 2 marks for standard steps!&quot;
-              </p>
+            {/* Footer of PDF page */}
+            <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400 relative z-10">
+              <span>NotesMaker License • {note.author}</span>
+              <span className="font-mono">Page {currentPage}</span>
             </div>
           </div>
+        )}
 
-          {/* Footer of PDF page */}
-          <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400 relative z-10">
-            <span>NotesMaker Digital License • {note.author}</span>
-            <span className="font-mono">Page {currentPage}</span>
-          </div>
-        </div>
       </div>
     </div>
   );
