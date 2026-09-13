@@ -6,20 +6,31 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
-import { BookOpen, Lock, Mail, User, Building, ArrowRight } from 'lucide-react';
+import { BookOpen, Lock, Mail, User, Building, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function StudentRegisterPage() {
   const router = useRouter();
-  const { loginAsStudent } = useAuth();
+  const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [college, setCollege] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    loginAsStudent(email || 'student@notesmaker.in', name || 'New Student');
-    router.push('/notes');
+    setErrorMsg('');
+    setIsSubmitting(true);
+
+    const res = await register(name, email, password, college);
+    setIsSubmitting(false);
+
+    if (res.success) {
+      router.push('/notes');
+    } else {
+      setErrorMsg(res.error || 'Registration failed');
+    }
   };
 
   return (
@@ -36,6 +47,13 @@ export default function StudentRegisterPage() {
             <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Create Student Account</h1>
             <p className="text-xs text-gray-500">Join 5,000+ students accessing topper digital notes</p>
           </div>
+
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -96,9 +114,10 @@ export default function StudentRegisterPage() {
                 <input
                   type="password"
                   required
+                  minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
+                  placeholder="At least 6 characters"
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -107,10 +126,17 @@ export default function StudentRegisterPage() {
 
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
             >
-              <span>Create Account & Start Reading</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <span>Create Account & Start Reading</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 

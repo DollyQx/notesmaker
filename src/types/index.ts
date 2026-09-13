@@ -33,17 +33,19 @@ export interface Note {
   institute?: string;
   pages: number;
   fileSize: string;
-  rating: number;
-  reviewsCount: number;
+  rating?: number;
+  reviewsCount?: number;
   salesCount: number;
   featured?: boolean;
   isPopular?: boolean;
   isBestseller?: boolean;
   sampleText?: string;
   pdfUrl?: string; // Internal protected reference
-  tags: string[];
-  createdAt: string;
-  updatedAt: string;
+  thumbnail?: string;
+  status?: 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
+  tags?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Student {
@@ -77,6 +79,6 @@ export interface UserSession {
   id: string;
   name: string;
   email: string;
-  role: 'student' | 'admin';
+  role: 'STUDENT' | 'ADMIN' | 'student' | 'admin';
   college?: string;
 }

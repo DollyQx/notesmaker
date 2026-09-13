@@ -6,18 +6,29 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
-import { BookOpen, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { BookOpen, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function StudentLoginPage() {
   const router = useRouter();
-  const { loginAsStudent, loginAsAdmin } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    loginAsStudent(email || 'student@notesmaker.in', email.split('@')[0] || 'Rahul Sharma');
-    router.push('/my-notes');
+    setErrorMsg('');
+    setIsSubmitting(true);
+
+    const res = await login(email, password);
+    setIsSubmitting(false);
+
+    if (res.success) {
+      router.push('/my-notes');
+    } else {
+      setErrorMsg(res.error || 'Invalid email or password');
+    }
   };
 
   return (
@@ -35,6 +46,13 @@ export default function StudentLoginPage() {
             <p className="text-xs text-gray-500">Access your purchased handwritten notes & PDF reader</p>
           </div>
 
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
@@ -46,7 +64,7 @@ export default function StudentLoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="rahul@gmail.com"
+                  placeholder="rahul.s@gmail.com"
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -70,12 +88,24 @@ export default function StudentLoginPage() {
               </div>
             </div>
 
+            <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 text-[11px] text-indigo-700">
+              <p className="font-bold">Demo Student Credentials:</p>
+              <p className="font-mono mt-0.5">Email: rahul.s@gmail.com | Password: student123</p>
+            </div>
+
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
             >
-              <span>Sign In to Student Portal</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <span>Sign In to Student Portal</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 
@@ -89,12 +119,9 @@ export default function StudentLoginPage() {
 
             <div className="bg-amber-50 p-3 rounded-xl border border-amber-200/80 text-[11px] text-amber-900 flex items-center justify-between">
               <span>Looking for store administration?</span>
-              <button
-                onClick={() => { loginAsAdmin(); router.push('/admin'); }}
-                className="font-bold underline text-amber-950"
-              >
+              <Link href="/admin/login" className="font-bold underline text-amber-950">
                 Admin Login
-              </button>
+              </Link>
             </div>
           </div>
 

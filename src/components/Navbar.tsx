@@ -8,21 +8,18 @@ import { useData } from '@/context/DataContext';
 import {
   BookOpen,
   Search,
-  User,
   LogOut,
-  ShieldAlert,
+  ShieldCheck,
   Menu,
   X,
   FileText,
-  Sparkles,
-  ChevronDown,
-  GraduationCap
+  ChevronDown
 } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loginAsStudent, loginAsAdmin, logout } = useAuth();
+  const { user, logout } = useAuth();
   const { categories } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -126,7 +123,7 @@ export default function Navbar() {
               )}
             </div>
 
-            {user?.role === 'student' && (
+            {user && (
               <Link
                 href="/my-notes"
                 className={`flex items-center gap-1.5 hover:text-indigo-600 transition-colors ${pathname === '/my-notes' ? 'text-indigo-600 font-semibold' : ''}`}
@@ -137,18 +134,18 @@ export default function Navbar() {
             )}
           </nav>
 
-          {/* User Auth / Quick Role Switcher Actions */}
+          {/* User Auth & Admin Panel Links */}
           <div className="flex items-center gap-3">
             {/* Direct Admin Link */}
             <Link
               href="/admin"
               className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                user?.role === 'admin'
+                user?.role === 'ADMIN'
                   ? 'bg-amber-100 text-amber-900 border border-amber-300'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
               <span>Admin Panel</span>
             </Link>
 
@@ -177,39 +174,33 @@ export default function Navbar() {
                       </span>
                     </div>
 
-                    {user.role === 'student' && (
+                    <Link
+                      href="/my-notes"
+                      onClick={() => setIsUserDropdownOpen(false)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                    >
+                      <FileText className="w-4 h-4" />
+                      My Library
+                    </Link>
+
+                    {user.role === 'ADMIN' && (
                       <Link
-                        href="/my-notes"
+                        href="/admin"
                         onClick={() => setIsUserDropdownOpen(false)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-amber-700 hover:bg-amber-50 font-semibold"
                       >
-                        <FileText className="w-4 h-4" />
-                        My Library
+                        <ShieldCheck className="w-4 h-4" />
+                        Admin Dashboard
                       </Link>
                     )}
 
                     <div className="border-t border-gray-100 my-1 pt-1">
-                      <div className="px-3 py-1.5">
-                        <p className="text-[10px] font-bold uppercase text-gray-400 tracking-wider mb-1">Switch Role (Testing)</p>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => { loginAsStudent(); setIsUserDropdownOpen(false); }}
-                            className="flex-1 text-[11px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold py-1 px-2 rounded"
-                          >
-                            Student
-                          </button>
-                          <button
-                            onClick={() => { loginAsAdmin(); setIsUserDropdownOpen(false); }}
-                            className="flex-1 text-[11px] bg-amber-50 text-amber-800 hover:bg-amber-100 font-semibold py-1 px-2 rounded"
-                          >
-                            Admin
-                          </button>
-                        </div>
-                      </div>
-
                       <button
-                        onClick={() => { logout(); setIsUserDropdownOpen(false); }}
-                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 text-left mt-1"
+                        onClick={async () => {
+                          await logout();
+                          setIsUserDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 text-left"
                       >
                         <LogOut className="w-4 h-4" />
                         Sign Out
@@ -274,20 +265,22 @@ export default function Navbar() {
               >
                 Browse All Notes
               </Link>
-              <Link
-                href="/my-notes"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center justify-between"
-              >
-                <span>Purchased Notes</span>
-                <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold">My Library</span>
-              </Link>
+              {user && (
+                <Link
+                  href="/my-notes"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100 flex items-center justify-between"
+                >
+                  <span>Purchased Notes</span>
+                  <span className="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold">My Library</span>
+                </Link>
+              )}
               <Link
                 href="/admin"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="px-3 py-2 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 font-semibold flex items-center gap-2"
               >
-                <ShieldAlert className="w-4 h-4 text-amber-600" />
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
                 Admin Dashboard
               </Link>
             </div>

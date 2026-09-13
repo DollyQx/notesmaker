@@ -1,64 +1,117 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUser } from '@/lib/auth';
+import { prisma } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  
-  // Security validation: In real DB, we check server session cookie / JWT & order table
-  // Here we validate request headers or mock purchase token
-  const authHeader = request.headers.get('x-user-role');
-  const userPurchases = request.headers.get('x-purchased-notes') || '';
-  const purchasedIds = userPurchases.split(',').map(s => s.trim());
+  try {
+    const { id } = await params;
+    const user = await getAuthUser(request);
 
-  const isAdmin = authHeader === 'admin';
-  const isPurchased = purchasedIds.includes(id) || id === 'note-101' || id === 'note-102'; // default sample notes access
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized: Access to protected PDF requires authentication' },
+        { status: 401 }
+      );
+    }
 
-  if (!isAdmin && !isPurchased) {
-    return NextResponse.json(
-      { error: 'Unauthorized. You must purchase this note before viewing full content.' },
-      { status: 403 }
-    );
-  }
+    const note = await prisma.note.findUnique({ where: { id } });
+    if (!note) {
+      return NextResponse.json({ success: false, error: 'Document not found' }, { status: 404 });
+    }
 
-  // Generate clean inline PDF payload representation (or simulated binary buffer)
-  const samplePdfContent = `%PDF-1.4
-1 0 obj <</Type /Catalog /Pages 2 0 R>> endobj
-2 0 obj <</Type /Pages /Count 1 /Kids [3 0 R]>> endobj
-3 0 obj <</Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources <</Font <</F1 5 0 R>>>>>> endobj
-4 0 obj <</Length 120>> stream
+    // Admins can read all documents. Students must have purchased the note.
+    if (user.role !== 'ADMIN') {
+      const hasPurchased = await prisma.purchase.findFirst({
+        where: { studentId: user.userId, noteId: id }
+      });
+
+      if (!hasPurchased) {
+        return NextResponse.json(
+          { success: false, error: 'Forbidden: You must purchase this note before opening the PDF reader' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Stream simulated binary PDF buffer with inline headers (disables save-as attachment header)
+    const pdfTextContent = `%PDF-1.7
+1 0 obj
+<<
+  /Title (${note.title})
+  /Author (${note.author})
+  /Subject (${note.description})
+  /Producer (NotesMaker Secure Engine)
+>>
+endobj
+2 0 obj
+<<
+  /Type /Catalog
+  /Pages 3 0 R
+>>
+endobj
+3 0 obj
+<<
+  /Type /Pages
+  /Kids [4 0 R]
+  /Count 1
+>>
+endobj
+4 0 obj
+<<
+  /Type /Page
+  /Parent 3 0 R
+  /Resources << >>
+  /MediaBox [0 0 612 792]
+  /Contents 5 0 R
+>>
+endobj
+5 0 obj
+<< /Length 200 >>
+stream
 BT
 /F1 24 Tf
-50 700 Td
-(NotesMaker Protected Document: ${id}) Tj
+100 700 Td
+(${note.title}) Tj
 0 -40 Td
 /F1 14 Tf
-(Verified Secure Reader - Single User License) Tj
+(Unlocked for: ${user.name} - ${user.email}) Tj
 ET
 endstream
 endobj
-5 0 obj <</Type /Font /Subtype /Type1 /BaseFont /Helvetica>> endobj
 xref
 0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000246 00000 n 
-0000000417 00000 n 
-trailer <</Size 6 /Root 1 0 R>>
+0000000000 65535 f
+0000000009 00000 n
+0000000140 00000 n
+0000000195 00000 n
+0000000258 00000 n
+0000000360 00000 n
+trailer
+<<
+  /Size 6
+  /Root 2 0 R
+>>
 startxref
-490
+580
 %%EOF`;
 
-  return new NextResponse(samplePdfContent, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="notesmaker_${id}.pdf"`,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
-      'X-Content-Type-Options': 'nosniff'
-    }
-  });
+    const encoder = new TextEncoder();
+    const pdfUint8 = encoder.encode(pdfTextContent);
+
+    return new NextResponse(pdfUint8, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="${note.slug}.pdf"`,
+        'Cache-Control': 'no-store, max-age=0, must-revalidate',
+        'X-Content-Type-Options': 'nosniff',
+        'X-NotesMaker-Security': 'Protected-Viewer'
+      }
+    });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to stream secure PDF document' }, { status: 500 });
+  }
 }

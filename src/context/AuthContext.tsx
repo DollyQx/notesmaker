@@ -1,99 +1,164 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserSession } from '@/types';
+import { useRouter } from 'next/navigation';
+
+export interface UserSession {
+  id: string;
+  name: string;
+  email: string;
+  role: 'STUDENT' | 'ADMIN';
+  college?: string;
+}
 
 interface AuthContextType {
   user: UserSession | null;
   purchasedNoteIds: string[];
-  loginAsStudent: (email?: string, name?: string) => void;
-  loginAsAdmin: (email?: string) => void;
-  logout: () => void;
-  hasPurchased: (noteId: string) => boolean;
-  addPurchasedNote: (noteId: string) => void;
   isLoading: boolean;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string, college?: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  unlockNote: (noteId: string) => Promise<{ success: boolean; error?: string }>;
+  hasPurchased: (noteId: string) => boolean;
+  refreshAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_STUDENT: UserSession = {
-  id: 'stud-1',
-  name: 'Rahul Sharma',
-  email: 'rahul.s@gmail.com',
-  role: 'student',
-  college: 'Delhi Technological University'
-};
-
-const DEFAULT_ADMIN: UserSession = {
-  id: 'admin-1',
-  name: 'Admin Manager',
-  email: 'admin@notesmaker.in',
-  role: 'admin'
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserSession | null>(null);
-  const [purchasedNoteIds, setPurchasedNoteIds] = useState<string[]>(['note-101', 'note-102']);
+  const [purchasedNoteIds, setPurchasedNoteIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchPurchases = async () => {
     try {
-      const savedUser = localStorage.getItem('notesmaker_user');
-      const savedPurchases = localStorage.getItem('notesmaker_purchased_ids');
-
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-      } else {
-        // Default demo login as student for seamless testing
-        setUser(DEFAULT_STUDENT);
-        localStorage.setItem('notesmaker_user', JSON.stringify(DEFAULT_STUDENT));
+      const res = await fetch('/api/purchases');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.purchasedNoteIds)) {
+          setPurchasedNoteIds(data.purchasedNoteIds);
+        }
       }
+    } catch (error) {
+      console.error('Error fetching purchases:', error);
+    }
+  };
 
-      if (savedPurchases) {
-        setPurchasedNoteIds(JSON.parse(savedPurchases));
+  const refreshAuth = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/auth/me');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.user) {
+          setUser({
+            id: data.user.userId || data.user.id,
+            name: data.user.name,
+            email: data.user.email,
+            role: data.user.role,
+            college: data.user.college
+          });
+          await fetchPurchases();
+        } else {
+          setUser(null);
+          setPurchasedNoteIds([]);
+        }
       } else {
-        localStorage.setItem('notesmaker_purchased_ids', JSON.stringify(['note-101', 'note-102']));
+        setUser(null);
+        setPurchasedNoteIds([]);
       }
-    } catch (e) {
-      console.error('Error restoring auth state:', e);
+    } catch (error) {
+      setUser(null);
+      setPurchasedNoteIds([]);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    refreshAuth();
   }, []);
 
-  const loginAsStudent = (email = 'student@notesmaker.in', name = 'Demo Student') => {
-    const studentUser: UserSession = {
-      id: 'stud-' + Date.now(),
-      name,
-      email,
-      role: 'student',
-      college: 'Delhi University'
-    };
-    setUser(studentUser);
-    localStorage.setItem('notesmaker_user', JSON.stringify(studentUser));
+  const login = async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+      if (data.success && data.user) {
+        setUser(data.user);
+        await fetchPurchases();
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || 'Invalid credentials' };
+      }
+    } catch (error: any) {
+      return { success: false, error: 'Network or server error during login' };
+    }
   };
 
-  const loginAsAdmin = (email = 'admin@notesmaker.in') => {
-    setUser(DEFAULT_ADMIN);
-    localStorage.setItem('notesmaker_user', JSON.stringify(DEFAULT_ADMIN));
+  const register = async (name: string, email: string, password: string, college?: string) => {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, college })
+      });
+
+      const data = await res.json();
+      if (data.success && data.user) {
+        setUser(data.user);
+        await fetchPurchases();
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || 'Registration failed' };
+      }
+    } catch (error: any) {
+      return { success: false, error: 'Network error during registration' };
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('notesmaker_user');
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      setPurchasedNoteIds([]);
+    }
+  };
+
+  const unlockNote = async (noteId: string) => {
+    if (!user) {
+      return { success: false, error: 'Please sign in to purchase notes' };
+    }
+
+    try {
+      const res = await fetch('/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ noteId })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setPurchasedNoteIds((prev) => Array.from(new Set([...prev, noteId])));
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || 'Failed to unlock note' };
+      }
+    } catch (error) {
+      return { success: false, error: 'Network error processing purchase' };
+    }
   };
 
   const hasPurchased = (noteId: string) => {
-    if (user?.role === 'admin') return true; // Admin gets preview access
+    if (user?.role === 'ADMIN') return true;
     return purchasedNoteIds.includes(noteId);
-  };
-
-  const addPurchasedNote = (noteId: string) => {
-    if (!purchasedNoteIds.includes(noteId)) {
-      const updated = [...purchasedNoteIds, noteId];
-      setPurchasedNoteIds(updated);
-      localStorage.setItem('notesmaker_purchased_ids', JSON.stringify(updated));
-    }
   };
 
   return (
@@ -101,12 +166,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         purchasedNoteIds,
-        loginAsStudent,
-        loginAsAdmin,
+        isLoading,
+        login,
+        register,
         logout,
+        unlockNote,
         hasPurchased,
-        addPurchasedNote,
-        isLoading
+        refreshAuth
       }}
     >
       {children}

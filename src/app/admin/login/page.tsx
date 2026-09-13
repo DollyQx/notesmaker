@@ -6,18 +6,29 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
-import { ShieldCheck, Lock, Mail, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { loginAsAdmin } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState('admin@notesmaker.in');
-  const [password, setPassword] = useState('••••••••');
+  const [password, setPassword] = useState('admin123');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    loginAsAdmin(email);
-    router.push('/admin');
+    setErrorMsg('');
+    setIsSubmitting(true);
+
+    const res = await login(email, password);
+    setIsSubmitting(false);
+
+    if (res.success) {
+      router.push('/admin');
+    } else {
+      setErrorMsg(res.error || 'Invalid administrator credentials');
+    }
   };
 
   return (
@@ -35,10 +46,17 @@ export default function AdminLoginPage() {
             <p className="text-xs text-slate-400">Secure Store Management Portal for NotesMaker</p>
           </div>
 
+          {errorMsg && (
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                Admin Credential ID / Email
+                Admin Email Identifier
               </label>
               <div className="relative">
                 <input
@@ -55,7 +73,7 @@ export default function AdminLoginPage() {
 
             <div>
               <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                Admin Master Password
+                Admin Password
               </label>
               <div className="relative">
                 <input
@@ -70,12 +88,24 @@ export default function AdminLoginPage() {
               </div>
             </div>
 
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300">
+              <p className="font-bold">Default Admin Master Credentials:</p>
+              <p className="font-mono mt-0.5">Email: admin@notesmaker.in | Password: admin123</p>
+            </div>
+
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs py-3.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
             >
-              <span>Access Admin Dashboard</span>
-              <ArrowRight className="w-4 h-4" />
+              {isSubmitting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <span>Access Admin Dashboard</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
 

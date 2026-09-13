@@ -12,22 +12,23 @@ import {
   X,
   Search,
   Upload,
-  Star,
+  Eye,
   CheckCircle2,
-  Tag,
-  ShieldCheck,
-  Eye
+  AlertCircle,
+  Loader2,
+  Globe,
+  EyeOff
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function AdminNotesPage() {
-  const { notes, categories, subcategories, addNote, updateNote, deleteNote } = useData();
+  const { notes, categories, subcategories, addNote, updateNote, deleteNote, isLoading } = useData();
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
 
-  // Form states
+  // Form & Feedback states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -38,10 +39,14 @@ export default function AdminNotesPage() {
   const [institute, setInstitute] = useState('');
   const [pages, setPages] = useState('95');
   const [fileSize, setFileSize] = useState('12.4 MB');
-  const [sampleText, setSampleText] = useState('');
+  const [status, setStatus] = useState<'ACTIVE' | 'DRAFT' | 'ARCHIVED'>('ACTIVE');
   const [featured, setFeatured] = useState(false);
   const [isBestseller, setIsBestseller] = useState(false);
   const [pdfFileName, setPdfFileName] = useState('note_document_v1.pdf');
+  
+  const [errorMsg, setErrorMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredSubCategories = subcategories.filter(s => s.categoryId === categoryId);
 
@@ -59,10 +64,11 @@ export default function AdminNotesPage() {
     setInstitute('IIT Delhi');
     setPages('95');
     setFileSize('12.4 MB');
-    setSampleText('');
+    setStatus('ACTIVE');
     setFeatured(false);
     setIsBestseller(false);
     setPdfFileName('handwritten_notes_final.pdf');
+    setErrorMsg('');
     setIsModalOpen(true);
   };
 
@@ -78,10 +84,11 @@ export default function AdminNotesPage() {
     setInstitute(note.institute || '');
     setPages(note.pages.toString());
     setFileSize(note.fileSize);
-    setSampleText(note.sampleText || '');
+    setStatus(note.status as any || 'ACTIVE');
     setFeatured(!!note.featured);
     setIsBestseller(!!note.isBestseller);
     setPdfFileName(`notes_${note.id}.pdf`);
+    setErrorMsg('');
     setIsModalOpen(true);
   };
 
@@ -91,73 +98,95 @@ export default function AdminNotesPage() {
     setSubCategoryId(matchingSub?.id || '');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !categoryId) return;
+    if (!title.trim() || !categoryId || !subCategoryId) return;
 
-    const cat = categories.find(c => c.id === categoryId);
-    const sub = subcategories.find(s => s.id === subCategoryId);
-    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+    setIsSubmitting(true);
+    setErrorMsg('');
 
     const parsedPrice = parseFloat(price) || 99;
     const parsedOrigPrice = parseFloat(originalPrice) || undefined;
     const parsedPages = parseInt(pages) || 50;
 
+    let res;
     if (editingNote) {
-      updateNote(editingNote.id, {
+      res = await updateNote(editingNote.id, {
         title: title.trim(),
-        slug,
         description: description.trim(),
         categoryId,
-        categoryName: cat?.name || 'General',
         subCategoryId,
-        subCategoryName: sub?.name || 'General',
         price: parsedPrice,
         originalPrice: parsedOrigPrice,
-        author: author.trim() || 'Topper Contributor',
+        author: author.trim(),
         institute: institute.trim() || undefined,
         pages: parsedPages,
         fileSize,
-        sampleText: sampleText.trim() || undefined,
+        status,
         featured,
         isBestseller
       });
     } else {
-      addNote({
+      res = await addNote({
         title: title.trim(),
-        slug,
         description: description.trim(),
         categoryId,
-        categoryName: cat?.name || 'General',
         subCategoryId,
-        subCategoryName: sub?.name || 'General',
         price: parsedPrice,
         originalPrice: parsedOrigPrice,
-        author: author.trim() || 'Topper Contributor',
+        author: author.trim(),
         institute: institute.trim() || undefined,
         pages: parsedPages,
         fileSize,
-        sampleText: sampleText.trim() || undefined,
+        status,
         featured,
         isBestseller,
-        pdfUrl: `/api/notes/note-demo/pdf`,
-        tags: [cat?.name || 'General', 'NotesMaker']
+        pdfUrl: `/api/notes/note-demo/pdf`
       });
     }
 
-    setIsModalOpen(false);
+    setIsSubmitting(false);
+
+    if (res.success) {
+      setSuccessMsg(editingNote ? 'Note updated successfully!' : 'Note published to marketplace!');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      setIsModalOpen(false);
+    } else {
+      setErrorMsg(res.error || 'Failed to save note');
+    }
+  };
+
+  const handleDelete = async (note: Note) => {
+    if (confirm(`Delete note "${note.title}"?`)) {
+      const res = await deleteNote(note.id);
+      if (res.success) {
+        setSuccessMsg(`Note "${note.title}" deleted.`);
+        setTimeout(() => setSuccessMsg(''), 4000);
+      } else {
+        alert(res.error || 'Failed to delete note');
+      }
+    }
+  };
+
+  const toggleStatus = async (note: Note) => {
+    const newStatus = note.status === 'ACTIVE' ? 'DRAFT' : 'ACTIVE';
+    const res = await updateNote(note.id, { status: newStatus as any });
+    if (res.success) {
+      setSuccessMsg(`Note status updated to ${newStatus}`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    }
   };
 
   const filteredNotes = notes.filter(n =>
     n.title.toLowerCase().includes(search.toLowerCase()) ||
-    n.categoryName.toLowerCase().includes(search.toLowerCase()) ||
+    n.categoryName?.toLowerCase().includes(search.toLowerCase()) ||
     n.author.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <AdminLayout
-      title="Notes Library & PDF Uploads"
-      subtitle="Publish, edit prices, upload PDF documents, and manage store inventory."
+      title="Notes Library & Document Uploads"
+      subtitle="Publish new PDF note packages, edit pricing, manage publication status, and view library inventory."
       actionButton={{
         label: 'Upload New PDF Note',
         onClick: handleOpenAddModal,
@@ -166,9 +195,17 @@ export default function AdminNotesPage() {
     >
       <div className="space-y-6">
         
+        {/* Toast Alert Banner */}
+        {successMsg && (
+          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
         {/* Search Bar */}
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+          <div className="relative w-full sm:max-w-md">
             <input
               type="text"
               value={search}
@@ -178,109 +215,130 @@ export default function AdminNotesPage() {
             />
             <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           </div>
-          <span className="text-xs text-slate-400 font-mono">Total {notes.length} published notes</span>
+          <span className="text-xs text-slate-400 font-mono self-end sm:self-auto">
+            {notes.length} published notes
+          </span>
         </div>
 
         {/* Notes Table */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="p-4">Note Document Title</th>
-                  <th className="p-4">Category & Sub-Category</th>
-                  <th className="p-4">Price</th>
-                  <th className="p-4">Author / College</th>
-                  <th className="p-4">Pages & Size</th>
-                  <th className="p-4">Sales</th>
-                  <th className="p-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {filteredNotes.map((note) => (
-                  <tr key={note.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-4 font-bold text-white max-w-xs">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex-shrink-0">
-                          <FileText className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="line-clamp-1">{note.title}</p>
-                          <div className="flex items-center gap-1 mt-0.5">
-                            {note.isBestseller && (
-                              <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-bold uppercase">
-                                Bestseller
-                              </span>
-                            )}
-                            {note.featured && (
-                              <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-bold uppercase">
-                                Featured
-                              </span>
-                            )}
+        {isLoading ? (
+          <div className="py-16 text-center space-y-3">
+            <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto" />
+            <p className="text-xs font-mono text-slate-400">Loading digital notes from database...</p>
+          </div>
+        ) : filteredNotes.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
+            <FileText className="w-10 h-10 text-slate-600 mx-auto" />
+            <h3 className="text-sm font-bold text-white">No Notes Found</h3>
+            <p className="text-xs text-slate-400">Upload your first digital note document package.</p>
+          </div>
+        ) : (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead className="bg-slate-950 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="p-4">Note Document Title</th>
+                    <th className="p-4">Category / Branch</th>
+                    <th className="p-4">Price</th>
+                    <th className="p-4">Author / College</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Sales</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredNotes.map((note) => (
+                    <tr key={note.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="p-4 font-bold text-white max-w-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex-shrink-0">
+                            <FileText className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="line-clamp-1">{note.title}</p>
+                            <div className="flex items-center gap-1 mt-0.5">
+                              {note.isBestseller && (
+                                <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded font-bold uppercase">
+                                  Bestseller
+                                </span>
+                              )}
+                              {note.featured && (
+                                <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-bold uppercase">
+                                  Featured
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="font-semibold text-slate-200">{note.categoryName}</div>
-                      <div className="text-[10px] text-slate-500">{note.subCategoryName}</div>
-                    </td>
-                    <td className="p-4 font-extrabold text-emerald-400 text-sm">
-                      ₹{note.price}
-                      {note.originalPrice && (
-                        <span className="text-[10px] text-slate-500 line-through ml-1 font-normal">
-                          ₹{note.originalPrice}
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-4 text-slate-300">
-                      <div>{note.author}</div>
-                      <div className="text-[10px] text-slate-500">{note.institute || 'General'}</div>
-                    </td>
-                    <td className="p-4 text-slate-400 text-[11px]">
-                      <div>{note.pages} Pages</div>
-                      <div className="text-[10px] text-slate-500">{note.fileSize}</div>
-                    </td>
-                    <td className="p-4 font-mono text-indigo-400 font-bold">{note.salesCount}</td>
-                    <td className="p-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link
-                          href={`/my-notes/${note.id}/read`}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-400 transition-colors"
-                          title="Preview Online PDF Reader"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </Link>
+                      </td>
+                      <td className="p-4">
+                        <div className="font-semibold text-slate-200">{note.categoryName}</div>
+                        <div className="text-[10px] text-slate-500">{note.subCategoryName}</div>
+                      </td>
+                      <td className="p-4 font-extrabold text-emerald-400 text-sm">
+                        ₹{note.price}
+                        {note.originalPrice && (
+                          <span className="text-[10px] text-slate-500 line-through ml-1 font-normal">
+                            ₹{note.originalPrice}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-4 text-slate-300">
+                        <div>{note.author}</div>
+                        <div className="text-[10px] text-slate-500">{note.institute || 'General'}</div>
+                      </td>
+                      <td className="p-4">
                         <button
-                          onClick={() => handleOpenEditModal(note)}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-400 transition-colors"
-                          title="Edit Note Details"
+                          onClick={() => toggleStatus(note)}
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                            note.status === 'ACTIVE'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-slate-800 text-slate-400 border-slate-700'
+                          }`}
+                          title="Click to toggle publish status"
                         >
-                          <Edit className="w-3.5 h-3.5" />
+                          {note.status === 'ACTIVE' ? <Globe className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                          <span>{note.status || 'ACTIVE'}</span>
                         </button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Delete note "${note.title}"?`)) {
-                              deleteNote(note.id);
-                            }
-                          }}
-                          className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-600 hover:text-white text-slate-400 transition-colors"
-                          title="Delete Note"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td className="p-4 font-mono text-indigo-400 font-bold">{note.salesCount}</td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link
+                            href={`/my-notes/${note.id}/read`}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-400 transition-colors"
+                            title="Preview Online PDF Reader"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </Link>
+                          <button
+                            onClick={() => handleOpenEditModal(note)}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-400 transition-colors"
+                            title="Edit Note Details"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(note)}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-600 hover:text-white text-slate-400 transition-colors"
+                            title="Delete Note"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
       </div>
 
-      {/* Note Upload / Edit Modal */}
+      {/* Note Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-8">
@@ -293,6 +351,13 @@ export default function AdminNotesPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
+            {errorMsg && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
@@ -349,7 +414,7 @@ export default function AdminNotesPage() {
                   <input
                     type="number"
                     required
-                    min={1}
+                    min={0}
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="149"
@@ -417,29 +482,17 @@ export default function AdminNotesPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                    PDF File Upload Simulation
+                    Publication Status
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={(e) => {
-                        if (e.target.files?.[0]) {
-                          setPdfFileName(e.target.files[0].name);
-                          setFileSize(`${(e.target.files[0].size / (1024 * 1024)).toFixed(1)} MB`);
-                        }
-                      }}
-                      className="hidden"
-                      id="pdf-file-input"
-                    />
-                    <label
-                      htmlFor="pdf-file-input"
-                      className="flex-1 bg-slate-950 border border-slate-800 hover:bg-slate-800 px-3.5 py-2.5 rounded-xl text-xs text-indigo-400 cursor-pointer flex items-center justify-between truncate"
-                    >
-                      <span className="truncate">{pdfFileName}</span>
-                      <Upload className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    </label>
-                  </div>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as any)}
+                    className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="ACTIVE">ACTIVE (Published in Store)</option>
+                    <option value="DRAFT">DRAFT (Hidden from Students)</option>
+                    <option value="ARCHIVED">ARCHIVED</option>
+                  </select>
                 </div>
               </div>
 
@@ -481,9 +534,11 @@ export default function AdminNotesPage() {
               <div className="pt-4 flex gap-2 border-t border-slate-800">
                 <button
                   type="submit"
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition-colors shadow-lg"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
                 >
-                  {editingNote ? 'Save Changes' : 'Publish Note Document'}
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{editingNote ? 'Save Changes' : 'Publish Note Document'}</span>
                 </button>
                 <button
                   type="button"

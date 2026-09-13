@@ -11,17 +11,14 @@ import {
   BookOpen,
   CheckCircle2,
   Lock,
-  ArrowRight,
-  ShieldCheck,
-  Search,
-  Sparkles
+  ArrowRight
 } from 'lucide-react';
 
 export default function MyNotesPage() {
   const { notes } = useData();
-  const { user, purchasedNoteIds, loginAsStudent } = useAuth();
+  const { user, purchasedNoteIds } = useAuth();
 
-  const purchasedNotes = notes.filter(n => purchasedNoteIds.includes(n.id));
+  const purchasedNotes = notes.filter(n => user?.role === 'ADMIN' || purchasedNoteIds.includes(n.id));
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
@@ -55,12 +52,12 @@ export default function MyNotesPage() {
             <Lock className="w-12 h-12 text-indigo-600 mx-auto" />
             <h2 className="text-lg font-bold text-gray-900">Student Login Required</h2>
             <p className="text-xs text-gray-500">Please sign in to view your purchased digital notes library.</p>
-            <button
-              onClick={() => loginAsStudent()}
-              className="bg-indigo-600 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-md hover:bg-indigo-700 transition-colors"
+            <Link
+              href="/login"
+              className="inline-block bg-indigo-600 text-white font-bold text-xs px-6 py-3 rounded-xl shadow-md hover:bg-indigo-700 transition-colors"
             >
-              Sign In as Demo Student
-            </button>
+              Sign In to Your Account
+            </Link>
           </div>
         ) : purchasedNotes.length > 0 ? (
           <div className="space-y-6">

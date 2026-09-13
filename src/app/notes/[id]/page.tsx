@@ -19,15 +19,15 @@ import {
   ShieldCheck,
   Zap,
   BookOpen,
-  Award,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 
 export default function NoteDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const { getNoteById, recordPurchase } = useData();
-  const { user, hasPurchased, addPurchasedNote } = useAuth();
+  const { getNoteById } = useData();
+  const { user, hasPurchased, unlockNote } = useAuth();
 
   const note = getNoteById(id);
   const isUnlocked = hasPurchased(id);
@@ -61,22 +61,22 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
     ? Math.round(((note.originalPrice - note.price) / note.originalPrice) * 100)
     : null;
 
-  const handleInstantUnlock = () => {
+  const handleInstantUnlock = async () => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
     setIsPurchasing(true);
-    setTimeout(() => {
-      // Record purchase in system state
-      const studentId = user?.id || 'stud-guest';
-      const studentName = user?.name || 'Guest Student';
-      const studentEmail = user?.email || 'student@notesmaker.in';
+    const res = await unlockNote(note.id);
+    setIsPurchasing(false);
+    setShowUnlockModal(false);
 
-      recordPurchase(note.id, studentId, studentName, studentEmail);
-      addPurchasedNote(note.id);
-
-      setIsPurchasing(false);
-      setShowUnlockModal(false);
-      // Redirect to PDF reader
+    if (res.success) {
       router.push(`/my-notes/${note.id}/read`);
-    }, 1200);
+    } else {
+      alert(res.error || 'Failed to unlock note');
+    }
   };
 
   return (
@@ -115,8 +115,8 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
           <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-2">
             <div className="flex items-center gap-1 text-amber-400 font-bold">
               <Star className="w-4 h-4 fill-amber-400" />
-              <span>{note.rating}</span>
-              <span className="text-slate-400">({note.reviewsCount} reviews)</span>
+              <span>{note.rating || 4.9}</span>
+              <span className="text-slate-400">({note.reviewsCount || 120} reviews)</span>
             </div>
             <span>•</span>
             <div className="flex items-center gap-1 text-slate-300">
@@ -246,7 +246,13 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                 </Link>
               ) : (
                 <button
-                  onClick={() => setShowUnlockModal(true)}
+                  onClick={() => {
+                    if (!user) {
+                      router.push('/login');
+                    } else {
+                      setShowUnlockModal(true);
+                    }
+                  }}
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3.5 rounded-xl shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
                 >
                   <Zap className="w-4 h-4 fill-white" />
@@ -271,14 +277,14 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
         </div>
       </div>
 
-      {/* Unlock / Purchase Modal (Simulated Payment Flow) */}
+      {/* Unlock / Purchase Modal */}
       {showUnlockModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-gray-100 animate-in zoom-in-95">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-gray-100">
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
               <h3 className="font-extrabold text-gray-900 text-base flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                Confirm Unlock Note
+                Confirm Digital Unlock
               </h3>
               <button onClick={() => setShowUnlockModal(false)} className="text-gray-400 hover:text-gray-600">
                 ✕
@@ -296,8 +302,8 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
             <div className="space-y-2 text-xs text-gray-600">
               <p className="font-bold text-gray-900">Student Account:</p>
               <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
-                <p className="font-semibold text-gray-800">{user?.name || 'Rahul Sharma'}</p>
-                <p className="text-[11px] text-gray-500">{user?.email || 'rahul.s@gmail.com'}</p>
+                <p className="font-semibold text-gray-800">{user?.name}</p>
+                <p className="text-[11px] text-gray-500">{user?.email}</p>
               </div>
             </div>
 
@@ -308,17 +314,14 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3.5 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isPurchasing ? (
-                  <span>Processing Demo Unlock...</span>
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Complete Purchase (Demo Mode)</span>
+                    <span>Complete Purchase & Unlock</span>
                   </>
                 )}
               </button>
-              <p className="text-[10px] text-center text-gray-400">
-                Note: Payments are disabled for this preview task step.
-              </p>
             </div>
           </div>
         </div>
