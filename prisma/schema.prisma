@@ -1,0 +1,88 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("STUDENT") // 'STUDENT' | 'ADMIN'
+  college   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  subCategories SubCategory[]
+  notes         Note[]
+}
+
+model SubCategory {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  categoryId  String
+  description String?
+  createdAt   DateTime @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  notes    Note[]
+}
+
+model Note {
+  id             String   @id @default(cuid())
+  title          String
+  slug           String   @unique
+  description    String
+  price          Float
+  originalPrice  Float?
+  pdfUrl         String
+  categoryId     String
+  subCategoryId  String
+  thumbnail      String?
+  author         String   @default("Topper Contributor")
+  institute      String?
+  pages          Int      @default(50)
+  fileSize       String   @default("10 MB")
+  sampleText     String?
+  status         String   @default("ACTIVE") // 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
+  isBestseller   Boolean  @default(false)
+  featured       Boolean  @default(false)
+  salesCount     Int      @default(0)
+  rating         Float    @default(4.8)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  category    Category    @relation(fields: [categoryId], references: [id])
+  subCategory SubCategory @relation(fields: [subCategoryId], references: [id])
+  purchases   Purchase[]
+}
+
+model Purchase {
+  id               String   @id @default(cuid())
+  transactionId    String   @unique @default(cuid())
+  studentId        String
+  noteId           String
+  amount           Float
+  paymentStatus    String   @default("COMPLETED") // 'COMPLETED' | 'PENDING' | 'FAILED'
+  paymentReference String
+  paymentMethod    String   @default("UPI (Instant Demo)")
+  purchasedAt      DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  note    Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
