@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -11,13 +11,34 @@ import {
   BookOpen,
   CheckCircle2,
   Lock,
-  ArrowRight
+  ArrowRight,
+  Calendar,
+  CreditCard,
+  Loader2
 } from 'lucide-react';
 
 export default function MyNotesPage() {
   const { notes } = useData();
   const { user, purchasedNoteIds } = useAuth();
+  const [purchasesList, setPurchasesList] = useState<any[]>([]);
+  const [isLoadingPurchases, setIsLoadingPurchases] = useState(false);
 
+  useEffect(() => {
+    if (user) {
+      setIsLoadingPurchases(true);
+      fetch('/api/purchases')
+        .then(res => res.json())
+        .then(data => {
+          setIsLoadingPurchases(false);
+          if (data.success && data.purchases) {
+            setPurchasesList(data.purchases);
+          }
+        })
+        .catch(() => setIsLoadingPurchases(false));
+    }
+  }, [user]);
+
+  // Combine DB purchases with Context state
   const purchasedNotes = notes.filter(n => user?.role === 'ADMIN' || purchasedNoteIds.includes(n.id));
 
   return (
@@ -59,6 +80,11 @@ export default function MyNotesPage() {
               Sign In to Your Account
             </Link>
           </div>
+        ) : isLoadingPurchases ? (
+          <div className="py-16 text-center space-y-3">
+            <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto" />
+            <p className="text-xs font-medium text-gray-500">Loading your purchased notes library...</p>
+          </div>
         ) : purchasedNotes.length > 0 ? (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -69,48 +95,69 @@ export default function MyNotesPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {purchasedNotes.map((note) => (
-                <div
-                  key={note.id}
-                  className="bg-white rounded-2xl border border-gray-200 shadow-xs hover:shadow-lg transition-all p-6 flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="bg-emerald-50 text-emerald-700 font-bold px-2.5 py-1 rounded-md border border-emerald-200/60 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Unlocked Access
+              {purchasedNotes.map((note) => {
+                const pRecord = purchasesList.find(p => p.noteId === note.id);
+                const purchaseDate = pRecord
+                  ? new Date(pRecord.purchasedAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })
+                  : 'Active License';
+
+                return (
+                  <div
+                    key={note.id}
+                    className="bg-white rounded-2xl border border-gray-200 shadow-xs hover:shadow-lg transition-all p-6 flex flex-col justify-between"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="bg-emerald-50 text-emerald-700 font-bold px-2.5 py-1 rounded-md border border-emerald-200/60 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> COMPLETED
+                        </span>
+                        <span className="text-gray-400 font-medium">{note.pages} Pages</span>
+                      </div>
+
+                      <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">
+                        {note.title}
+                      </h3>
+
+                      <p className="text-xs text-gray-600 line-clamp-2">
+                        {note.description}
+                      </p>
+
+                      <div className="text-[11px] text-gray-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-500 flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-indigo-500" /> Date:
+                          </span>
+                          <span className="font-semibold text-gray-800">{purchaseDate}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                          <span className="text-gray-500 flex items-center gap-1">
+                            <CreditCard className="w-3 h-3 text-indigo-500" /> Amount Paid:
+                          </span>
+                          <span className="font-bold text-indigo-600">₹{pRecord ? pRecord.amount : note.price}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        {pRecord?.transactionId || 'LIC-VERIFIED'}
                       </span>
-                      <span className="text-gray-400 font-medium">{note.pages} Pages</span>
-                    </div>
 
-                    <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">
-                      {note.title}
-                    </h3>
-
-                    <p className="text-xs text-gray-600 line-clamp-2">
-                      {note.description}
-                    </p>
-
-                    <div className="text-[11px] text-gray-500 bg-gray-50 p-2 rounded-lg border border-gray-100 flex justify-between">
-                      <span>Author: {note.author}</span>
-                      <span className="font-bold text-indigo-600">{note.categoryName}</span>
+                      <Link
+                        href={`/my-notes/${note.id}/read`}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        <span>Read Note</span>
+                      </Link>
                     </div>
                   </div>
-
-                  <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
-                    <div className="text-[10px] text-gray-400">
-                      <span>Status: Lifetime Active</span>
-                    </div>
-
-                    <Link
-                      href={`/my-notes/${note.id}/read`}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      <span>Read Online</span>
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ) : (

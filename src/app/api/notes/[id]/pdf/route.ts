@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import fs from 'fs/promises';
-import path from 'path';
+import { generateSignedUrl } from '@/lib/storage';
 
 export async function GET(
   request: NextRequest,
@@ -29,7 +28,7 @@ export async function GET(
       );
     }
 
-    // STEP 3: Verify Note is Published / Available (Admins can bypass status check)
+    // STEP 3: Verify Note is Published / Available (Admins bypass status check)
     if (user.role !== 'ADMIN' && note.status !== 'ACTIVE') {
       return NextResponse.json(
         { success: false, error: 'Document not available or unlisted' },
@@ -55,33 +54,27 @@ export async function GET(
       }
     }
 
-    // STEP 5: Controlled File Access & Safe Streaming
-    let pdfBuffer: Buffer | null = null;
+    // STEP 5: Generate Short-Lived Signed URL from Private Supabase Storage (valid for 60s)
+    if (note.pdfUrl && !note.pdfUrl.startsWith('storage/pdfs/')) {
+      const signedRes = await generateSignedUrl(note.pdfUrl, 60);
 
-    if (note.pdfUrl && note.pdfUrl.startsWith('storage/pdfs/')) {
-      const fileName = path.basename(note.pdfUrl);
-      const storageDir = path.join(process.cwd(), 'storage', 'pdfs');
-      const safePath = path.join(storageDir, fileName);
-
-      // SECURITY: Path traversal guard - ensure safePath stays strictly inside storageDir
-      const resolvedPath = path.resolve(safePath);
-      if (!resolvedPath.startsWith(path.resolve(storageDir))) {
-        return NextResponse.json(
-          { success: false, error: 'Forbidden: Invalid file path request' },
-          { status: 403 }
-        );
-      }
-
-      try {
-        pdfBuffer = await fs.readFile(resolvedPath);
-      } catch (err) {
-        console.warn(`Stored file not found at ${resolvedPath}, falling back to generated PDF stream.`);
+      if (signedRes.success && signedRes.signedUrl) {
+        // If client requests JSON format (e.g. from PDF viewer component)
+        const format = request.nextUrl.searchParams.get('format');
+        if (format === 'json') {
+          return NextResponse.json({
+            success: true,
+            signedUrl: signedRes.signedUrl,
+            expiresIn: 60
+          });
+        }
+        // Otherwise redirect to short-lived signed URL for seamless streaming
+        return NextResponse.redirect(signedRes.signedUrl, 307);
       }
     }
 
-    // Fallback: Generate valid dynamic PDF stream if no physical uploaded file exists yet
-    if (!pdfBuffer) {
-      const pdfTextContent = `%PDF-1.7
+    // Fallback: Generate dynamic protected PDF stream if using local/demo path
+    const pdfTextContent = `%PDF-1.7
 1 0 obj
 <<
   /Title (${note.title.replace(/[()]/g, '')})
@@ -105,7 +98,7 @@ endobj
 endobj
 4 0 obj
 <<
-  /Type /Pages
+  /Type /Page
   /Parent 3 0 R
   /Resources << >>
   /MediaBox [0 0 612 792]
@@ -143,13 +136,9 @@ trailer
 startxref
 580
 %%EOF`;
-      pdfBuffer = Buffer.from(pdfTextContent, 'utf-8');
-    }
 
-    // Convert Buffer to Uint8Array for BodyInit compatibility
-    const pdfUint8 = new Uint8Array(pdfBuffer);
+    const pdfUint8 = new TextEncoder().encode(pdfTextContent);
 
-    // Return binary stream with inline disposition (prevents standard browser auto-download)
     return new NextResponse(pdfUint8, {
       status: 200,
       headers: {

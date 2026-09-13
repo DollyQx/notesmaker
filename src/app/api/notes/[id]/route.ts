@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireAdmin, getAuthUser } from '@/lib/auth';
+import { deletePdfFromStorage } from '@/lib/storage';
 
 const updateNoteSchema = z.object({
   title: z.string().min(3).optional(),
@@ -16,7 +17,8 @@ const updateNoteSchema = z.object({
   fileSize: z.string().optional(),
   status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
   featured: z.boolean().optional(),
-  isBestseller: z.boolean().optional()
+  isBestseller: z.boolean().optional(),
+  pdfUrl: z.string().optional()
 });
 
 export async function GET(
@@ -97,8 +99,15 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+
+    const note = await prisma.note.findUnique({ where: { id } });
+    if (note && note.pdfUrl) {
+      // Clean up private Supabase Storage object
+      await deletePdfFromStorage(note.pdfUrl);
+    }
+
     await prisma.note.delete({ where: { id } });
-    return NextResponse.json({ success: true, message: 'Note deleted successfully' });
+    return NextResponse.json({ success: true, message: 'Note deleted and storage cleaned up' });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: 'Failed to delete note' }, { status: 500 });
   }

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
-import fs from 'fs/promises';
-import path from 'path';
-import crypto from 'crypto';
+import { uploadPdfToStorage } from '@/lib/storage';
 
 // Max file size: 50 MB
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -35,37 +33,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Ensure secure private storage directory exists outside public directory
-    const storageDir = path.join(process.cwd(), 'storage', 'pdfs');
-    await fs.mkdir(storageDir, { recursive: true });
-
-    // 4. Generate safe unique filename
-    const safeName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}.pdf`;
-    const targetPath = path.join(storageDir, safeName);
-
-    // 5. Convert ArrayBuffer and write to disk
+    // 3. Convert file to buffer and upload to private Supabase bucket 'notes-pdfs'
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    await fs.writeFile(targetPath, buffer);
+
+    const uploadRes = await uploadPdfToStorage(buffer, file.name, file.type);
+
+    if (!uploadRes.success || !uploadRes.path) {
+      return NextResponse.json(
+        { success: false, error: uploadRes.error || 'Failed to upload PDF to Supabase Storage' },
+        { status: 500 }
+      );
+    }
 
     // Formatted size helper
     const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
     const formattedSize = `${sizeInMB} MB`;
 
-    // Return the secure storage file reference (not a public URL)
-    const fileRef = `storage/pdfs/${safeName}`;
-
     return NextResponse.json({
       success: true,
-      fileRef,
+      fileRef: uploadRes.path,
       originalName: file.name,
       fileSize: formattedSize,
-      message: 'PDF file securely uploaded and stored on server'
+      message: 'PDF document securely uploaded to private Supabase Storage bucket'
     });
   } catch (error: any) {
     console.error('PDF Upload API Error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to upload PDF file' },
+      { success: false, error: 'Failed to process PDF upload' },
       { status: 500 }
     );
   }
