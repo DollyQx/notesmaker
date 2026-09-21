@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
-import { seedDatabase } from '@/lib/seed';
 
 export async function GET(request: NextRequest) {
   try {
-    await seedDatabase();
     const user = await getAuthUser(request);
     
     if (!user) {

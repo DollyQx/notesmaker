@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
-import { seedDatabase } from '@/lib/seed';
 
 const categorySchema = z.object({
   name: z.string().min(2, 'Category name must be at least 2 characters'),
@@ -11,7 +10,6 @@ const categorySchema = z.object({
 
 export async function GET() {
   try {
-    await seedDatabase();
     const categories = await prisma.category.findMany({
       include: {
         _count: {

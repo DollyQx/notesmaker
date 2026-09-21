@@ -8,116 +8,149 @@ import {
   INITIAL_PURCHASES
 } from './mockData';
 
-export async function seedDatabase() {
-  try {
-    const userCount = await prisma.user.count();
-    if (userCount > 0) {
-      return; // Already seeded
-    }
+export async function seedProductionDatabase() {
+  const adminPassword = process.env.NOTESMAKER_ADMIN_PASSWORD;
 
-    console.log('Seeding SQLite database with default users, categories, notes...');
+  if (!adminPassword || adminPassword.trim().length === 0) {
+    console.error('\n================================================================');
+    console.error('CRITICAL SEED ERROR: NOTESMAKER_ADMIN_PASSWORD environment variable is missing!');
+    console.error('Please set NOTESMAKER_ADMIN_PASSWORD before running the seed command.');
+    console.error('================================================================\n');
+    throw new Error('NOTESMAKER_ADMIN_PASSWORD environment variable is required to seed the database.');
+  }
 
-    // 1. Seed Admin User
-    const adminPasswordHash = await hashPassword('admin123');
-    const adminUser = await prisma.user.create({
+  console.log('Initializing production database (Admin user, Categories, and SubCategories)...');
+
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@notesmaker.in').toLowerCase().trim();
+  const adminPasswordHash = await hashPassword(adminPassword.trim());
+
+  // 1. Seed or update Admin User idempotently
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail }
+  });
+
+  if (!existingAdmin) {
+    await prisma.user.create({
       data: {
         id: 'admin-1',
         name: 'System Admin Manager',
-        email: 'admin@notesmaker.in',
+        email: adminEmail,
         password: adminPasswordHash,
         role: 'ADMIN',
         college: 'NotesMaker HQ'
       }
     });
-
-    // 2. Seed Student User
-    const studentPasswordHash = await hashPassword('student123');
-    const defaultStudent = await prisma.user.create({
+    console.log(`[SEED] Initial admin created for: ${adminEmail}`);
+  } else {
+    await prisma.user.update({
+      where: { email: adminEmail },
       data: {
-        id: 'stud-1',
-        name: 'Rahul Sharma',
-        email: 'rahul.s@gmail.com',
-        password: studentPasswordHash,
-        role: 'STUDENT',
-        college: 'Delhi Technological University'
+        password: adminPasswordHash,
+        role: 'ADMIN'
       }
     });
+    console.log(`[SEED] Admin credentials updated for: ${adminEmail}`);
+  }
 
-    // Seed additional mock students
-    for (const stud of INITIAL_STUDENTS) {
-      if (stud.id !== 'stud-1') {
-        const pass = await hashPassword('student123');
-        await prisma.user.create({
-          data: {
-            id: stud.id,
-            name: stud.name,
-            email: stud.email,
-            password: pass,
-            role: 'STUDENT',
-            college: stud.college || 'Delhi University'
-          }
-        });
+  // 2. Seed Core Categories idempotently
+  for (const cat of INITIAL_CATEGORIES) {
+    await prisma.category.upsert({
+      where: { slug: cat.slug },
+      update: {
+        name: cat.name,
+        description: cat.description
+      },
+      create: {
+        id: cat.id,
+        name: cat.name,
+        slug: cat.slug,
+        description: cat.description
       }
-    }
+    });
+  }
+  console.log(`[SEED] Seeded ${INITIAL_CATEGORIES.length} core categories.`);
 
-    // 3. Seed Categories
-    for (const cat of INITIAL_CATEGORIES) {
-      await prisma.category.create({
-        data: {
-          id: cat.id,
-          name: cat.name,
-          slug: cat.slug,
-          description: cat.description
-        }
-      });
-    }
+  // 3. Seed Core SubCategories idempotently
+  for (const sub of INITIAL_SUBCATEGORIES) {
+    await prisma.subCategory.upsert({
+      where: { slug: sub.slug },
+      update: {
+        name: sub.name,
+        categoryId: sub.categoryId,
+        description: sub.description
+      },
+      create: {
+        id: sub.id,
+        name: sub.name,
+        slug: sub.slug,
+        categoryId: sub.categoryId,
+        description: sub.description
+      }
+    });
+  }
+  console.log(`[SEED] Seeded ${INITIAL_SUBCATEGORIES.length} core subcategories.`);
 
-    // 4. Seed SubCategories
-    for (const sub of INITIAL_SUBCATEGORIES) {
-      await prisma.subCategory.create({
-        data: {
-          id: sub.id,
-          name: sub.name,
-          slug: sub.slug,
-          categoryId: sub.categoryId,
-          description: sub.description
-        }
-      });
-    }
+  // Optional: Seed demo data ONLY if explicitly requested via environment variable SEED_DEMO_DATA=true
+  if (process.env.SEED_DEMO_DATA === 'true') {
+    console.log('[SEED] SEED_DEMO_DATA=true detected. Seeding demo students, notes, and purchases...');
+    await seedDemoData();
+  }
 
-    // 5. Seed Notes
-    for (const note of INITIAL_NOTES) {
-      await prisma.note.create({
-        data: {
-          id: note.id,
-          title: note.title,
-          slug: note.slug,
-          description: note.description,
-          price: note.price,
-          originalPrice: note.originalPrice,
-          pdfUrl: note.pdfUrl || `/api/notes/${note.id}/pdf`,
-          categoryId: note.categoryId,
-          subCategoryId: note.subCategoryId,
-          author: note.author,
-          institute: note.institute,
-          pages: note.pages,
-          fileSize: note.fileSize,
-          sampleText: note.sampleText,
-          status: 'ACTIVE',
-          isBestseller: !!note.isBestseller,
-          featured: !!note.featured,
-          salesCount: note.salesCount,
-          rating: note.rating
-        }
-      });
-    }
+  console.log('[SEED] Database seeding completed successfully.');
+}
 
-    // 6. Seed Purchases
-    for (const p of INITIAL_PURCHASES) {
-      const studentExists = await prisma.user.findUnique({ where: { id: p.studentId } });
-      const noteExists = await prisma.note.findUnique({ where: { id: p.noteId } });
+async function seedDemoData() {
+  for (const stud of INITIAL_STUDENTS) {
+    const studentPass = await hashPassword('student123');
+    await prisma.user.upsert({
+      where: { email: stud.email.toLowerCase() },
+      update: {},
+      create: {
+        id: stud.id,
+        name: stud.name,
+        email: stud.email.toLowerCase(),
+        password: studentPass,
+        role: 'STUDENT',
+        college: stud.college || 'Delhi University'
+      }
+    });
+  }
 
-      if (studentExists && noteExists) {
+  for (const note of INITIAL_NOTES) {
+    await prisma.note.upsert({
+      where: { slug: note.slug },
+      update: {},
+      create: {
+        id: note.id,
+        title: note.title,
+        slug: note.slug,
+        description: note.description,
+        price: note.price,
+        originalPrice: note.originalPrice,
+        pdfUrl: note.pdfUrl || `/api/notes/${note.id}/pdf`,
+        categoryId: note.categoryId,
+        subCategoryId: note.subCategoryId,
+        author: note.author,
+        institute: note.institute,
+        pages: note.pages,
+        fileSize: note.fileSize,
+        sampleText: note.sampleText,
+        status: 'ACTIVE',
+        isBestseller: !!note.isBestseller,
+        featured: !!note.featured,
+        salesCount: note.salesCount,
+        rating: note.rating
+      }
+    });
+  }
+
+  for (const p of INITIAL_PURCHASES) {
+    const studentExists = await prisma.user.findUnique({ where: { id: p.studentId } });
+    const noteExists = await prisma.note.findUnique({ where: { id: p.noteId } });
+
+    if (studentExists && noteExists) {
+      const existingPurchase = await prisma.purchase.findUnique({ where: { transactionId: p.transactionId } });
+      if (!existingPurchase) {
         await prisma.purchase.create({
           data: {
             id: p.id,
@@ -132,9 +165,19 @@ export async function seedDatabase() {
         });
       }
     }
-
-    console.log('Database seeding completed successfully!');
-  } catch (error) {
-    console.error('Error seeding database:', error);
   }
 }
+
+export const seedDatabase = seedProductionDatabase;
+
+if (require.main === module || process.argv[1]?.includes('seed')) {
+  seedProductionDatabase()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('Seeding process failed:', err.message || err);
+      process.exit(1);
+    });
+}
+

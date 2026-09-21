@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireAdmin, getAuthUser } from '@/lib/auth';
-import { seedDatabase } from '@/lib/seed';
 
 const noteSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
@@ -25,7 +24,6 @@ const noteSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    await seedDatabase();
     const user = await getAuthUser(request);
     const isAdmin = user?.role === 'ADMIN';
 

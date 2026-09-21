@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { comparePassword, signToken } from '@/lib/auth';
-import { seedDatabase } from '@/lib/seed';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -11,8 +10,6 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await seedDatabase();
-
     const body = await request.json();
     const result = loginSchema.safeParse(body);
 

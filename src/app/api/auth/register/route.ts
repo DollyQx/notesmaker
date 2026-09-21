@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { hashPassword, signToken } from '@/lib/auth';
-import { seedDatabase } from '@/lib/seed';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -13,8 +12,6 @@ const registerSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await seedDatabase();
-
     const body = await request.json();
     const result = registerSchema.safeParse(body);
 
