@@ -11,8 +11,8 @@ import { ShieldCheck, Lock, Mail, ArrowRight, AlertCircle, Loader2 } from 'lucid
 export default function AdminLoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState('admin@notesmaker.in');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,7 +43,7 @@ export default function AdminLoginPage() {
               <ShieldCheck className="w-7 h-7" />
             </div>
             <h1 className="text-2xl font-extrabold text-white tracking-tight">Admin Authentication</h1>
-            <p className="text-xs text-slate-400">Secure Store Management Portal for NotesMaker</p>
+            <p className="text-xs text-slate-400">Secure Store Management Portal for Notes Study</p>
           </div>
 
           {errorMsg && (
@@ -64,7 +64,7 @@ export default function AdminLoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@notesmaker.in"
+                  placeholder="admin@notesstudy.online"
                   className="w-full pl-10 pr-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -86,11 +86,6 @@ export default function AdminLoginPage() {
                 />
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300">
-              <p className="font-bold">Default Admin Master Credentials:</p>
-              <p className="font-mono mt-0.5">Email: admin@notesmaker.in | Password: admin123</p>
             </div>
 
             <button

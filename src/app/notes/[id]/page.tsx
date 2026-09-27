@@ -144,7 +144,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
           key: orderData.keyId,
           amount: orderData.amountInPaise,
           currency: orderData.currency || 'INR',
-          name: 'NotesMaker Marketplace',
+          name: 'Notes Study Marketplace',
           description: `Unlock Note: ${orderData.noteTitle}`,
           order_id: orderData.orderId,
           prefill: {
@@ -163,7 +163,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                 noteId: note.id,
                 razorpay_order_id: response.razorpay_order_id || orderData.orderId,
                 razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature || 'simulated_sig_ok'
+                razorpay_signature: response.razorpay_signature
               })
             });
             const verifyData = await verifyRes.json();
@@ -191,30 +191,8 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
         const razorpayInstance = new (window as any).Razorpay(options);
         razorpayInstance.open();
       } else {
-        // Fallback for offline/test environment: Verify test transaction directly
-        const verifyRes = await fetch('/api/payments/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            noteId: note.id,
-            razorpay_order_id: orderData.orderId,
-            razorpay_payment_id: `PAY_TEST_${Date.now()}`,
-            razorpay_signature: 'simulated_sig_ok'
-          })
-        });
-        const verifyData = await verifyRes.json();
         setIsPurchasing(false);
-
-        if (verifyData.success) {
-          setPurchaseSuccess('Payment verified! Redirecting to PDF reader...');
-          unlockNote(note.id);
-          setTimeout(() => {
-            setShowUnlockModal(false);
-            router.push(`/my-notes/${note.id}/read`);
-          }, 1200);
-        } else {
-          setPurchaseError(verifyData.error || 'Failed to complete payment');
-        }
+        setPurchaseError('Unable to load Razorpay payment gateway. Please check your internet connection or ad blocker and try again.');
       }
     } catch (err) {
       setIsPurchasing(false);

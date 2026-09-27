@@ -49,7 +49,7 @@ export default function Navbar() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-gray-900 via-indigo-950 to-indigo-700">
-                  NotesMaker
+                  Notes Study
                 </span>
                 <span className="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider">
                   Pro

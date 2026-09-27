@@ -220,7 +220,7 @@ export default function PdfViewer({ note }: PdfViewerProps) {
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center overflow-hidden opacity-5 z-0">
               <div className="rotate-[-35deg] text-center font-extrabold text-slate-900 text-3xl sm:text-5xl tracking-widest leading-relaxed">
                 LICENSED TO {user?.name.toUpperCase() || 'STUDENT'}<br />
-                {user?.email || 'STUDENT@NOTESMAKER.IN'}<br />
+                {user?.email || 'STUDENT@NOTESSTUDY.ONLINE'}<br />
                 CONFIDENTIAL • DO NOT DISTRIBUTE
               </div>
             </div>
@@ -268,7 +268,7 @@ function calculateYield(inputVector) {
 
             {/* Footer of PDF page */}
             <div className="mt-8 pt-4 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400 relative z-10">
-              <span>NotesMaker License • {note.author}</span>
+              <span>Notes Study License • {note.author}</span>
               <span className="font-mono">Page {currentPage}</span>
             </div>
           </div>

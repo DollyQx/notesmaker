@@ -102,7 +102,7 @@ export async function DELETE(
 
     const note = await prisma.note.findUnique({ where: { id } });
     if (note && note.pdfUrl) {
-      // Clean up private Supabase Storage object
+      // Clean up persistent storage object
       await deletePdfFromStorage(note.pdfUrl);
     }
 

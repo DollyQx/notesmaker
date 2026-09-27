@@ -11,16 +11,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { noteId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
 
-    if (!noteId || !razorpay_payment_id) {
+    if (!noteId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json(
-        { success: false, error: 'Missing required payment verification details' },
+        { success: false, error: 'Missing required payment verification parameters' },
         { status: 400 }
       );
     }
 
     const studentId = auth.user.userId;
 
-    // SECURITY: Always fetch actual note price from DB
+    // SECURITY: Always fetch actual note from DB
     const note = await prisma.note.findUnique({ where: { id: noteId } });
     if (!note) {
       return NextResponse.json(
@@ -29,30 +29,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || 'notesmaker_secret_123';
+    const keySecret =
+      process.env.RAZORPAY_KEY_SECRET ||
+      process.env.RAZORPAY_SECRET ||
+      '';
 
-    // Server-side HMAC SHA256 Signature Verification
-    if (razorpay_order_id && razorpay_signature) {
-      const generatedSignature = crypto
-        .createHmac('sha256', keySecret)
-        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-        .digest('hex');
-
-      // Check if signature matches or if in test mode
-      const isValidSignature =
-        generatedSignature === razorpay_signature ||
-        razorpay_signature.startsWith('simulated_sig_') ||
-        razorpay_signature === 'test_signature_valid';
-
-      if (!isValidSignature) {
-        return NextResponse.json(
-          { success: false, error: 'Payment signature verification failed. Access denied.' },
-          { status: 400 }
-        );
-      }
+    if (!keySecret) {
+      console.error('Razorpay secret missing from server configuration');
+      return NextResponse.json(
+        { success: false, error: 'Payment gateway configuration error' },
+        { status: 500 }
+      );
     }
 
-    // PREVENT DUPLICATES: Upsert or check existing purchase record
+    // Server-side HMAC SHA256 Signature Verification
+    const generatedSignature = crypto
+      .createHmac('sha256', keySecret)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest('hex');
+
+    if (generatedSignature !== razorpay_signature) {
+      console.warn(`Payment signature mismatch for order ${razorpay_order_id}`);
+      return NextResponse.json(
+        { success: false, error: 'Payment signature verification failed. Access denied.' },
+        { status: 400 }
+      );
+    }
+
+    // PREVENT DUPLICATES: Check if student has already completed purchase for this note
     const existingPurchase = await prisma.purchase.findFirst({
       where: { studentId, noteId }
     });
@@ -60,6 +64,14 @@ export async function POST(request: NextRequest) {
     let purchaseRecord;
 
     if (existingPurchase) {
+      if (existingPurchase.paymentStatus === 'COMPLETED') {
+        return NextResponse.json({
+          success: true,
+          message: 'Note is already unlocked in your library',
+          purchase: existingPurchase
+        });
+      }
+
       purchaseRecord = await prisma.purchase.update({
         where: { id: existingPurchase.id },
         data: {
@@ -69,11 +81,9 @@ export async function POST(request: NextRequest) {
         }
       });
     } else {
-      const txnId = `PAY-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
       purchaseRecord = await prisma.purchase.create({
         data: {
-          transactionId: txnId,
+          transactionId: razorpay_payment_id,
           studentId,
           noteId,
           amount: note.price,
@@ -83,7 +93,7 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Increment note sales count
+      // Increment note sales count safely
       await prisma.note.update({
         where: { id: noteId },
         data: { salesCount: { increment: 1 } }

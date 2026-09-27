@@ -30,6 +30,7 @@ export default function PdfReadPage({ params }: { params: Promise<{ id: string }
             </Link>
           </div>
         </div>
+        <Footer />
       </div>
     );
   }
@@ -57,6 +58,7 @@ export default function PdfReadPage({ params }: { params: Promise<{ id: string }
             </div>
           </div>
         </div>
+        <Footer />
       </div>
     );
   }

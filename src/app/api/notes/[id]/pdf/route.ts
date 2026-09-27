@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
 import { getAuthUser } from '@/lib/auth';
 import { prisma } from '@/lib/db';
-import { generateSignedUrl } from '@/lib/storage';
+import { resolvePdfFilePath } from '@/lib/storage';
 
 export async function GET(
   request: NextRequest,
@@ -54,33 +55,34 @@ export async function GET(
       }
     }
 
-    // STEP 5: Generate Short-Lived Signed URL from Private Supabase Storage (valid for 60s)
-    if (note.pdfUrl && !note.pdfUrl.startsWith('storage/pdfs/')) {
-      const signedRes = await generateSignedUrl(note.pdfUrl, 60);
-
-      if (signedRes.success && signedRes.signedUrl) {
-        // If client requests JSON format (e.g. from PDF viewer component)
-        const format = request.nextUrl.searchParams.get('format');
-        if (format === 'json') {
-          return NextResponse.json({
-            success: true,
-            signedUrl: signedRes.signedUrl,
-            expiresIn: 60
-          });
-        }
-        // Otherwise redirect to short-lived signed URL for seamless streaming
-        return NextResponse.redirect(signedRes.signedUrl, 307);
+    // STEP 5: Stream Real PDF Document from Persistent Protected Storage
+    if (note.pdfUrl) {
+      const resolvedPath = resolvePdfFilePath(note.pdfUrl);
+      if (resolvedPath && fs.existsSync(resolvedPath)) {
+        const fileBuffer = await fs.promises.readFile(resolvedPath);
+        return new NextResponse(fileBuffer, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="${note.slug || 'document'}.pdf"`,
+            'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'X-Content-Type-Options': 'nosniff',
+            'X-NotesStudy-Security': 'Protected-Viewer-Enforced'
+          }
+        });
       }
     }
 
-    // Fallback: Generate dynamic protected PDF stream if using local/demo path
+    // Fallback: Generate dynamic licensed PDF placeholder if uploaded file is pending
     const pdfTextContent = `%PDF-1.7
 1 0 obj
 <<
   /Title (${note.title.replace(/[()]/g, '')})
   /Author (${note.author.replace(/[()]/g, '')})
   /Subject (${note.description.slice(0, 100).replace(/[()]/g, '')})
-  /Producer (NotesMaker Secure Engine)
+  /Producer (Notes Study Secure Engine)
 >>
 endobj
 2 0 obj
@@ -116,7 +118,7 @@ BT
 /F1 14 Tf
 (Licensed to: ${user.name.replace(/[()]/g, '')} - ${user.email.replace(/[()]/g, '')}) Tj
 0 -30 Td
-(Category: ${note.categoryId}) Tj
+(Notes Study Official License) Tj
 ET
 endstream
 endobj
@@ -148,7 +150,7 @@ startxref
         'Pragma': 'no-cache',
         'Expires': '0',
         'X-Content-Type-Options': 'nosniff',
-        'X-NotesMaker-Security': 'Protected-Viewer-Enforced'
+        'X-NotesStudy-Security': 'Protected-Viewer-Enforced'
       }
     });
   } catch (error: any) {

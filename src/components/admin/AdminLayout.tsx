@@ -118,7 +118,7 @@ export default function AdminLayout({
           <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
             <ShieldCheck className="w-5 h-5" />
           </div>
-          <span className="font-extrabold text-sm text-white">NotesMaker Admin</span>
+          <span className="font-extrabold text-sm text-white">Notes Study Admin</span>
         </div>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
@@ -142,7 +142,7 @@ export default function AdminLayout({
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="font-extrabold text-sm text-white tracking-tight">NotesMaker</h2>
+              <h2 className="font-extrabold text-sm text-white tracking-tight">Notes Study</h2>
               <p className="text-[10px] text-amber-400 font-mono font-bold">Admin Console</p>
             </div>
           </div>
@@ -208,28 +208,47 @@ export default function AdminLayout({
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0">
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 flex flex-col justify-between">
         
-        {/* Page Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">{title}</h1>
-            {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
+        <div>
+          {/* Page Top Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">{title}</h1>
+              {subtitle && <p className="text-xs text-slate-400 mt-1">{subtitle}</p>}
+            </div>
+
+            {actionButton && (
+              <button
+                onClick={actionButton.onClick}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4 py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 self-start sm:self-auto"
+              >
+                {actionButton.icon}
+                <span>{actionButton.label}</span>
+              </button>
+            )}
           </div>
 
-          {actionButton && (
-            <button
-              onClick={actionButton.onClick}
-              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs px-4 py-3 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2 self-start sm:self-auto"
-            >
-              {actionButton.icon}
-              <span>{actionButton.label}</span>
-            </button>
-          )}
+          {/* Page Body */}
+          <div>{children}</div>
         </div>
 
-        {/* Page Body */}
-        <div>{children}</div>
+        {/* Admin Footer Attribution */}
+        <footer className="mt-12 pt-6 border-t border-slate-800 text-xs text-slate-400 text-center">
+          <p>
+            © 2026 Notes Study · Developed by{' '}
+            <a
+              href="https://wa.me/917982683218"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Contact DollyQx on WhatsApp"
+              className="text-slate-200 hover:text-white underline underline-offset-2 decoration-slate-600 hover:decoration-white transition-colors font-medium"
+            >
+              DollyQx
+            </a>{' '}
+            · GM Code Lab
+          </p>
+        </footer>
       </main>
 
     </div>

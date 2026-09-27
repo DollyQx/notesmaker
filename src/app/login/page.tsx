@@ -64,7 +64,7 @@ export default function StudentLoginPage() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="rahul.s@gmail.com"
+                  placeholder="student@example.com"
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -86,11 +86,6 @@ export default function StudentLoginPage() {
                 />
                 <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 text-[11px] text-indigo-700">
-              <p className="font-bold">Demo Student Credentials:</p>
-              <p className="font-mono mt-0.5">Email: rahul.s@gmail.com | Password: student123</p>
             </div>
 
             <button

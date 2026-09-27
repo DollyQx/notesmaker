@@ -33,15 +33,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Convert file to buffer and upload to private Supabase bucket 'notes-pdfs'
+    // 3. Validate PDF magic bytes (%PDF-)
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    const pdfHeader = buffer.subarray(0, 5).toString('ascii');
+    if (!pdfHeader.startsWith('%PDF-')) {
+      return NextResponse.json(
+        { success: false, error: 'Uploaded file is not a valid PDF document (magic bytes mismatch)' },
+        { status: 400 }
+      );
+    }
 
+    // 4. Save to secure server storage outside public_html
     const uploadRes = await uploadPdfToStorage(buffer, file.name, file.type);
 
     if (!uploadRes.success || !uploadRes.path) {
       return NextResponse.json(
-        { success: false, error: uploadRes.error || 'Failed to upload PDF to Supabase Storage' },
+        { success: false, error: uploadRes.error || 'Failed to save PDF to persistent storage' },
         { status: 500 }
       );
     }
@@ -55,7 +63,7 @@ export async function POST(request: NextRequest) {
       fileRef: uploadRes.path,
       originalName: file.name,
       fileSize: formattedSize,
-      message: 'PDF document securely uploaded to private Supabase Storage bucket'
+      message: 'PDF document securely saved to protected persistent storage'
     });
   } catch (error: any) {
     console.error('PDF Upload API Error:', error);

@@ -158,6 +158,11 @@ export default function AdminNotesPage() {
     e.preventDefault();
     if (!title.trim() || !categoryId || !subCategoryId) return;
 
+    if (!editingNote && !pdfFileRef) {
+      setErrorMsg('Please upload a PDF document before saving.');
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMsg('');
 
@@ -198,7 +203,7 @@ export default function AdminNotesPage() {
         status,
         featured,
         isBestseller,
-        pdfUrl: pdfFileRef || `/api/notes/note-demo/pdf`
+        pdfUrl: pdfFileRef || ''
       });
     }
 

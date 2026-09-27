@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -24,7 +24,7 @@ model Category {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
-  description String?
+  description String?  @db.Text
   createdAt   DateTime @default(now())
 
   subCategories SubCategory[]
@@ -36,7 +36,7 @@ model SubCategory {
   name        String
   slug        String   @unique
   categoryId  String
-  description String?
+  description String?  @db.Text
   createdAt   DateTime @default(now())
 
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
@@ -47,18 +47,18 @@ model Note {
   id             String   @id @default(cuid())
   title          String
   slug           String   @unique
-  description    String
+  description    String   @db.Text
   price          Float
   originalPrice  Float?
-  pdfUrl         String
+  pdfUrl         String   @db.Text
   categoryId     String
   subCategoryId  String
-  thumbnail      String?
+  thumbnail      String?  @db.Text
   author         String   @default("Topper Contributor")
   institute      String?
   pages          Int      @default(50)
   fileSize       String   @default("10 MB")
-  sampleText     String?
+  sampleText     String?  @db.Text
   status         String   @default("ACTIVE") // 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
   isBestseller   Boolean  @default(false)
   featured       Boolean  @default(false)
@@ -80,7 +80,7 @@ model Purchase {
   amount           Float
   paymentStatus    String   @default("COMPLETED") // 'COMPLETED' | 'PENDING' | 'FAILED'
   paymentReference String
-  paymentMethod    String   @default("UPI (Instant Demo)")
+  paymentMethod    String   @default("Razorpay Online")
   purchasedAt      DateTime @default(now())
 
   student User @relation(fields: [studentId], references: [id], onDelete: Cascade)

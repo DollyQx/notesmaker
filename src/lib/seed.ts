@@ -2,27 +2,36 @@ import { prisma } from './db';
 import { hashPassword } from './auth';
 import {
   INITIAL_CATEGORIES,
-  INITIAL_SUBCATEGORIES,
-  INITIAL_NOTES,
-  INITIAL_STUDENTS,
-  INITIAL_PURCHASES
+  INITIAL_SUBCATEGORIES
 } from './mockData';
 
 export async function seedProductionDatabase() {
-  const adminPassword = process.env.NOTESMAKER_ADMIN_PASSWORD;
+  const adminEmail = (
+    process.env.NOTES_STUDY_ADMIN_EMAIL ||
+    process.env.NOTESMAKER_ADMIN_EMAIL ||
+    process.env.ADMIN_EMAIL ||
+    ''
+  ).toLowerCase().trim();
 
-  if (!adminPassword || adminPassword.trim().length === 0) {
+  const adminPassword = (
+    process.env.NOTES_STUDY_ADMIN_PASSWORD ||
+    process.env.NOTESMAKER_ADMIN_PASSWORD ||
+    process.env.ADMIN_PASSWORD ||
+    ''
+  ).trim();
+
+  if (!adminEmail || !adminPassword) {
     console.error('\n================================================================');
-    console.error('CRITICAL SEED ERROR: NOTESMAKER_ADMIN_PASSWORD environment variable is missing!');
-    console.error('Please set NOTESMAKER_ADMIN_PASSWORD before running the seed command.');
+    console.error('CRITICAL SEED ERROR: Production admin credentials are missing!');
+    console.error('Please set NOTESMAKER_ADMIN_EMAIL (or ADMIN_EMAIL) and NOTESMAKER_ADMIN_PASSWORD (or ADMIN_PASSWORD).');
     console.error('================================================================\n');
-    throw new Error('NOTESMAKER_ADMIN_PASSWORD environment variable is required to seed the database.');
+    throw new Error('Admin credentials (NOTESMAKER_ADMIN_EMAIL / ADMIN_EMAIL and password) are required to seed.');
   }
 
-  console.log('Initializing production database (Admin user, Categories, and SubCategories)...');
+  console.log(`[SEED] Initializing production database for Notes Study...`);
+  console.log(`[SEED] Admin Email: ${adminEmail}`);
 
-  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@notesmaker.in').toLowerCase().trim();
-  const adminPasswordHash = await hashPassword(adminPassword.trim());
+  const adminPasswordHash = await hashPassword(adminPassword);
 
   // 1. Seed or update Admin User idempotently
   const existingAdmin = await prisma.user.findUnique({
@@ -33,23 +42,24 @@ export async function seedProductionDatabase() {
     await prisma.user.create({
       data: {
         id: 'admin-1',
-        name: 'System Admin Manager',
+        name: 'Notes Study Admin',
         email: adminEmail,
         password: adminPasswordHash,
         role: 'ADMIN',
-        college: 'NotesMaker HQ'
+        college: 'Notes Study HQ'
       }
     });
-    console.log(`[SEED] Initial admin created for: ${adminEmail}`);
+    console.log(`[SEED] Production admin account created successfully.`);
   } else {
     await prisma.user.update({
       where: { email: adminEmail },
       data: {
+        name: 'Notes Study Admin',
         password: adminPasswordHash,
         role: 'ADMIN'
       }
     });
-    console.log(`[SEED] Admin credentials updated for: ${adminEmail}`);
+    console.log(`[SEED] Production admin account credentials updated successfully.`);
   }
 
   // 2. Seed Core Categories idempotently
@@ -68,7 +78,7 @@ export async function seedProductionDatabase() {
       }
     });
   }
-  console.log(`[SEED] Seeded ${INITIAL_CATEGORIES.length} core categories.`);
+  console.log(`[SEED] Seeded ${INITIAL_CATEGORIES.length} production categories.`);
 
   // 3. Seed Core SubCategories idempotently
   for (const sub of INITIAL_SUBCATEGORIES) {
@@ -88,84 +98,8 @@ export async function seedProductionDatabase() {
       }
     });
   }
-  console.log(`[SEED] Seeded ${INITIAL_SUBCATEGORIES.length} core subcategories.`);
-
-  // Optional: Seed demo data ONLY if explicitly requested via environment variable SEED_DEMO_DATA=true
-  if (process.env.SEED_DEMO_DATA === 'true') {
-    console.log('[SEED] SEED_DEMO_DATA=true detected. Seeding demo students, notes, and purchases...');
-    await seedDemoData();
-  }
-
-  console.log('[SEED] Database seeding completed successfully.');
-}
-
-async function seedDemoData() {
-  for (const stud of INITIAL_STUDENTS) {
-    const studentPass = await hashPassword('student123');
-    await prisma.user.upsert({
-      where: { email: stud.email.toLowerCase() },
-      update: {},
-      create: {
-        id: stud.id,
-        name: stud.name,
-        email: stud.email.toLowerCase(),
-        password: studentPass,
-        role: 'STUDENT',
-        college: stud.college || 'Delhi University'
-      }
-    });
-  }
-
-  for (const note of INITIAL_NOTES) {
-    await prisma.note.upsert({
-      where: { slug: note.slug },
-      update: {},
-      create: {
-        id: note.id,
-        title: note.title,
-        slug: note.slug,
-        description: note.description,
-        price: note.price,
-        originalPrice: note.originalPrice,
-        pdfUrl: note.pdfUrl || `/api/notes/${note.id}/pdf`,
-        categoryId: note.categoryId,
-        subCategoryId: note.subCategoryId,
-        author: note.author,
-        institute: note.institute,
-        pages: note.pages,
-        fileSize: note.fileSize,
-        sampleText: note.sampleText,
-        status: 'ACTIVE',
-        isBestseller: !!note.isBestseller,
-        featured: !!note.featured,
-        salesCount: note.salesCount,
-        rating: note.rating
-      }
-    });
-  }
-
-  for (const p of INITIAL_PURCHASES) {
-    const studentExists = await prisma.user.findUnique({ where: { id: p.studentId } });
-    const noteExists = await prisma.note.findUnique({ where: { id: p.noteId } });
-
-    if (studentExists && noteExists) {
-      const existingPurchase = await prisma.purchase.findUnique({ where: { transactionId: p.transactionId } });
-      if (!existingPurchase) {
-        await prisma.purchase.create({
-          data: {
-            id: p.id,
-            transactionId: p.transactionId,
-            studentId: p.studentId,
-            noteId: p.noteId,
-            amount: p.amount,
-            paymentStatus: 'COMPLETED',
-            paymentReference: p.transactionId,
-            paymentMethod: p.paymentMethod
-          }
-        });
-      }
-    }
-  }
+  console.log(`[SEED] Seeded ${INITIAL_SUBCATEGORIES.length} production subcategories.`);
+  console.log('[SEED] Production database initialization complete. Clean slate: No demo students, notes, or purchases.');
 }
 
 export const seedDatabase = seedProductionDatabase;
@@ -180,4 +114,3 @@ if (require.main === module || process.argv[1]?.includes('seed')) {
       process.exit(1);
     });
 }
-

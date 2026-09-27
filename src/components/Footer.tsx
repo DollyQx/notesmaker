@@ -59,7 +59,7 @@ export default function Footer() {
               <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
                 <BookOpen className="w-4 h-4" />
               </div>
-              <span className="font-extrabold text-lg text-white tracking-tight">NotesMaker</span>
+              <span className="font-extrabold text-lg text-white tracking-tight">Notes Study</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
               India&apos;s lightweight digital notes marketplace for university students, competitive exam aspirants & lifelong learners.
@@ -89,15 +89,27 @@ export default function Footer() {
           <div>
             <h5 className="text-xs font-bold uppercase tracking-wider text-slate-200 mb-3">Student Support</h5>
             <p className="text-xs text-slate-400 mb-2">Have a question or request notes?</p>
-            <a href="mailto:support@notesmaker.in" className="inline-block bg-slate-800 hover:bg-slate-700 text-indigo-400 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-700 transition-colors">
-              support@notesmaker.in
+            <a href="mailto:support@notesstudy.online" className="inline-block bg-slate-800 hover:bg-slate-700 text-indigo-400 text-xs font-semibold px-3 py-2 rounded-lg border border-slate-700 transition-colors">
+              support@notesstudy.online
             </a>
           </div>
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-6 border-t border-slate-800 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p>© {new Date().getFullYear()} NotesMaker Digital Marketplace. All rights reserved.</p>
+        <div className="pt-6 border-t border-slate-800 text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-center sm:text-left">
+            © 2026 Notes Study · Developed by{' '}
+            <a
+              href="https://wa.me/917982683218"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Contact DollyQx on WhatsApp"
+              className="text-slate-200 hover:text-white underline underline-offset-2 decoration-slate-600 hover:decoration-white transition-colors font-medium"
+            >
+              DollyQx
+            </a>{' '}
+            · GM Code Lab
+          </p>
           <div className="flex items-center gap-1 text-slate-400">
             <span>Built with</span>
             <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500" />

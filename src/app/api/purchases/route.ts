@@ -4,53 +4,68 @@ import { prisma } from '@/lib/db';
 import { requireStudentOrAdmin } from '@/lib/auth';
 
 const purchaseSchema = z.object({
-  noteId: z.string().min(1, 'Note ID is required')
+  noteId: z.string().min(1, 'Note ID is required'),
+  targetStudentId: z.string().optional() // Only allowed when called by ADMIN
 });
 
 export async function POST(request: NextRequest) {
   const auth = await requireStudentOrAdmin(request);
   if (auth.errorResponse || !auth.user) return auth.errorResponse!;
 
+  // SECURITY: Normal students must complete purchases through Razorpay payment verification
+  if (auth.user.role !== 'ADMIN') {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Direct purchase bypass is disabled. All student purchases must be completed through Razorpay checkout.'
+      },
+      { status: 403 }
+    );
+  }
+
   try {
     const body = await request.json();
     const result = purchaseSchema.safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error.issues[0]?.message || 'Invalid note ID' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: result.error.issues[0]?.message || 'Invalid note ID' },
+        { status: 400 }
+      );
     }
 
-    const { noteId } = result.data;
-    const studentId = auth.user.userId;
+    const { noteId, targetStudentId } = result.data;
+    const recipientStudentId = targetStudentId || auth.user.userId;
 
     const note = await prisma.note.findUnique({ where: { id: noteId } });
     if (!note) {
       return NextResponse.json({ success: false, error: 'Note not found' }, { status: 404 });
     }
 
-    // Check if already purchased
+    // Check if student already has this note
     const existing = await prisma.purchase.findFirst({
-      where: { studentId, noteId }
+      where: { studentId: recipientStudentId, noteId }
     });
 
     if (existing) {
       return NextResponse.json({
         success: true,
-        message: 'Note is already unlocked in your library',
+        message: 'Note is already unlocked for this student',
         purchase: existing
       });
     }
 
-    const txnId = `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const txnId = `ADMIN-GRANT-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const newPurchase = await prisma.purchase.create({
       data: {
         transactionId: txnId,
-        studentId,
+        studentId: recipientStudentId,
         noteId,
         amount: note.price,
         paymentStatus: 'COMPLETED',
-        paymentReference: txnId,
-        paymentMethod: 'Instant Demo Unlock'
+        paymentReference: `MANUAL_ADMIN_${auth.user.email}`,
+        paymentMethod: 'Admin Manual Grant'
       }
     });
 
@@ -62,12 +77,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Note unlocked successfully!',
+      message: 'Note document successfully granted by administrator',
       purchase: newPurchase
     });
   } catch (error: any) {
-    console.error('Purchase API Error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to process purchase' }, { status: 500 });
+    console.error('Purchase Grant API Error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to process purchase grant' }, { status: 500 });
   }
 }
 
@@ -79,7 +94,7 @@ export async function GET(request: NextRequest) {
     const studentId = auth.user.userId;
 
     const purchases = await prisma.purchase.findMany({
-      where: { studentId },
+      where: { studentId, paymentStatus: 'COMPLETED' },
       include: {
         note: {
           include: { category: true, subCategory: true }

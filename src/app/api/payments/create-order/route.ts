@@ -27,6 +27,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (note.status !== 'ACTIVE' && auth.user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { success: false, error: 'Note is not currently available for purchase' },
+        { status: 400 }
+      );
+    }
+
     const studentId = auth.user.userId;
 
     // Check if student already purchased this note
@@ -43,41 +50,47 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_notesmaker123';
-    const keySecret = process.env.RAZORPAY_KEY_SECRET || 'notesmaker_secret_123';
+    const keyId =
+      process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+      process.env.RAZORPAY_KEY_ID ||
+      process.env.RAZORPAY_KEY ||
+      '';
+    const keySecret =
+      process.env.RAZORPAY_KEY_SECRET ||
+      process.env.RAZORPAY_SECRET ||
+      '';
+
+    if (!keyId || !keySecret) {
+      console.error('Razorpay gateway credentials missing from environment variables');
+      return NextResponse.json(
+        { success: false, error: 'Payment gateway configuration error. Please contact support.' },
+        { status: 500 }
+      );
+    }
+
     const amountInPaise = Math.round(note.price * 100);
 
-    let orderId = `order_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
+    const razorpay = new Razorpay({
+      key_id: keyId,
+      key_secret: keySecret
+    });
 
-    // If Razorpay SDK can connect with valid credentials
-    if (keyId.startsWith('rzp_live_') || (keyId.startsWith('rzp_test_') && !keyId.includes('placeholder'))) {
-      try {
-        const razorpay = new Razorpay({
-          key_id: keyId,
-          key_secret: keySecret
-        });
+    const receiptId = `rcpt_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`;
 
-        const order = await razorpay.orders.create({
-          amount: amountInPaise,
-          currency: 'INR',
-          receipt: `receipt_${Date.now()}`,
-          notes: {
-            noteId: note.id,
-            studentId,
-            noteTitle: note.title
-          }
-        });
-        if (order && order.id) {
-          orderId = order.id;
-        }
-      } catch (rzpErr) {
-        console.warn('Razorpay SDK Order creation fallback to mock order ID:', rzpErr);
+    const order = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency: 'INR',
+      receipt: receiptId,
+      notes: {
+        noteId: note.id,
+        studentId,
+        noteTitle: note.title.slice(0, 40)
       }
-    }
+    });
 
     return NextResponse.json({
       success: true,
-      orderId,
+      orderId: order.id,
       keyId,
       amount: note.price,
       amountInPaise,
@@ -89,7 +102,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Razorpay Create Order Error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create payment order' },
+      { success: false, error: error.message || 'Failed to create payment order' },
       { status: 500 }
     );
   }

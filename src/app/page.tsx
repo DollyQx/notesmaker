@@ -51,7 +51,7 @@ export default function HomePage() {
           
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-indigo-300 text-xs font-semibold mb-6 animate-pulse">
             <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>₹6,000 Project Demo • Verified Topper Handwritten Notes</span>
+            <span>Verified Topper Handwritten Notes • Instant Digital Access</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-tight mb-6">
@@ -181,7 +181,7 @@ export default function HomePage() {
               Built for Student Convenience
             </span>
             <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight mt-3">
-              Why Students Trust NotesMaker
+              Why Students Trust Notes Study
             </h2>
           </div>
 

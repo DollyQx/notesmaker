@@ -1,6 +1,6 @@
 {
-  "name": "notesmaker",
-  "version": "0.1.0",
+  "name": "notes-study",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
-    "@supabase/supabase-js": "^2.116.0",
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.45.0",

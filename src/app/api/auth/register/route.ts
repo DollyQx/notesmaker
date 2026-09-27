@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { hashPassword, signToken } from '@/lib/auth';
+import { hashPassword, signToken, COOKIE_NAME } from '@/lib/auth';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Set secure HTTP-only cookie
-    response.cookies.set('notesmaker_token', token, {
+    response.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

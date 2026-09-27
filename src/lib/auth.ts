@@ -3,7 +3,19 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from './db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'notesmaker_super_secret_jwt_key_₹6000_production_2026';
+export const COOKIE_NAME = 'notesstudy_token';
+export const LEGACY_COOKIE_NAME = 'notesmaker_token';
+
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.trim().length === 0) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('CRITICAL SECURITY ERROR: JWT_SECRET environment variable is missing in production!');
+    }
+    return 'notes_study_dev_jwt_secret_key_change_in_production_2026';
+  }
+  return secret.trim();
+}
 
 export interface TokenPayload {
   userId: string;
@@ -22,12 +34,14 @@ export async function comparePassword(password: string, hashed: string): Promise
 }
 
 export function signToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  const secret = getJwtSecret();
+  return jwt.sign(payload, secret, { expiresIn: '7d' });
 }
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    const secret = getJwtSecret();
+    return jwt.verify(token, secret) as TokenPayload;
   } catch (error) {
     return null;
   }
@@ -35,8 +49,10 @@ export function verifyToken(token: string): TokenPayload | null {
 
 export async function getAuthUser(request: NextRequest): Promise<TokenPayload | null> {
   try {
-    // 1. Check HTTP-only Cookie
-    const cookieToken = request.cookies.get('notesmaker_token')?.value;
+    // 1. Check HTTP-only Cookie (new cookie name, with fallback to legacy for existing sessions)
+    const cookieToken =
+      request.cookies.get(COOKIE_NAME)?.value ||
+      request.cookies.get(LEGACY_COOKIE_NAME)?.value;
     
     // 2. Fallback to Authorization Header
     const authHeader = request.headers.get('authorization');
@@ -46,7 +62,7 @@ export async function getAuthUser(request: NextRequest): Promise<TokenPayload | 
     if (!token) return null;
 
     const decoded = verifyToken(token);
-    if (!decoded) return null;
+    if (!decoded || !decoded.userId) return null;
 
     // Verify user still exists in DB
     const dbUser = await prisma.user.findUnique({

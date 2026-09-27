@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { comparePassword, signToken } from '@/lib/auth';
+import { comparePassword, signToken, COOKIE_NAME } from '@/lib/auth';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    response.cookies.set('notesmaker_token', token, {
+    response.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
