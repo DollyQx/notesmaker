@@ -11,41 +11,88 @@ import {
   ShieldCheck,
   Type,
   Lock,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { sanitizeTextContent } from '@/lib/sanitize';
 
 interface TextNoteReaderProps {
   note: Note;
+  isPreview?: boolean;
+  directContent?: string;
 }
 
-export default function TextNoteReader({ note }: TextNoteReaderProps) {
+export default function TextNoteReader({ note, isPreview = false, directContent }: TextNoteReaderProps) {
+  const [content, setContent] = useState<string>(directContent || note.textContent || '');
+  const [isLoadingContent, setIsLoadingContent] = useState<boolean>(!directContent && !note.textContent);
+  const [errorMsg, setErrorMsg] = useState<string>('');
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('base');
   const [zoomLevel, setZoomLevel] = useState<number>(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copyWarning, setCopyWarning] = useState(false);
 
-  // Client-side text copy protection: Prevent copy, print, cut, and key shortcuts
+  // Sync content if directContent or note changes
   useEffect(() => {
+    if (directContent !== undefined) {
+      setContent(directContent);
+      setIsLoadingContent(false);
+    }
+  }, [directContent]);
+
+  // Securely fetch authorized text content from server if not already provided
+  useEffect(() => {
+    if (isPreview || directContent !== undefined || content) return;
+
+    let isMounted = true;
+    setIsLoadingContent(true);
+    setErrorMsg('');
+
+    fetch(`/api/notes/${note.id}/content`, {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' }
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Access denied (${res.status})`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (isMounted) {
+          if (data.success && data.textContent) {
+            setContent(data.textContent);
+          } else {
+            setErrorMsg('No text content available for this note document.');
+          }
+          setIsLoadingContent(false);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          setErrorMsg(err.message || 'Failed to authorize document reader.');
+          setIsLoadingContent(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [note.id, isPreview, directContent, content]);
+
+  // Client-side text copy protection: intercept shortcuts, context menu, and selection
+  useEffect(() => {
+    if (isPreview) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent Ctrl+C or Cmd+C
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+      const isCmdOrCtrl = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+
+      // Intercept Ctrl+C (Copy), Ctrl+X (Cut), Ctrl+A (Select All), Ctrl+P (Print), Ctrl+S (Save), Ctrl+U (View Source)
+      if (isCmdOrCtrl && (key === 'c' || key === 'x' || key === 'a' || key === 'p' || key === 's' || key === 'u')) {
         e.preventDefault();
+        e.stopPropagation();
         triggerCopyWarning();
-      }
-      // Prevent Ctrl+P or Cmd+P (Print)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
-        e.preventDefault();
-        triggerCopyWarning();
-      }
-      // Prevent Ctrl+S or Cmd+S (Save)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        triggerCopyWarning();
-      }
-      // Prevent Ctrl+U (View Source)
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
-        e.preventDefault();
       }
     };
 
@@ -54,18 +101,25 @@ export default function TextNoteReader({ note }: TextNoteReaderProps) {
       triggerCopyWarning();
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('copy', handleCopy);
+    const handleCut = (e: ClipboardEvent) => {
+      e.preventDefault();
+      triggerCopyWarning();
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('copy', handleCopy, true);
+    window.addEventListener('cut', handleCut, true);
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('copy', handleCopy);
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('copy', handleCopy, true);
+      window.removeEventListener('cut', handleCut, true);
     };
-  }, []);
+  }, [isPreview]);
 
   const triggerCopyWarning = () => {
     setCopyWarning(true);
-    setTimeout(() => setCopyWarning(false), 3000);
+    setTimeout(() => setCopyWarning(false), 3500);
   };
 
   const toggleFullscreen = () => {
@@ -80,168 +134,24 @@ export default function TextNoteReader({ note }: TextNoteReaderProps) {
   };
 
   const fontSizeClasses = {
-    sm: 'text-sm leading-relaxed',
-    base: 'text-base leading-relaxed',
-    lg: 'text-lg leading-loose',
-    xl: 'text-xl leading-loose'
+    sm: 'text-sm leading-relaxed sm:leading-relaxed',
+    base: 'text-base leading-relaxed sm:leading-loose',
+    lg: 'text-lg leading-loose sm:leading-loose',
+    xl: 'text-xl leading-loose sm:leading-loose'
   }[fontSize];
 
-  // Parse structured markdown / educational content into beautiful document layout
-  const renderDocumentContent = (rawText: string) => {
-    if (!rawText) {
-      return (
-        <div className="py-12 text-center text-slate-400 italic">
-          No document content available for this note.
-        </div>
-      );
-    }
-
-    const sanitized = sanitizeTextContent(rawText);
-    const lines = sanitized.split('\n');
-    const elements: React.ReactNode[] = [];
-    let currentList: { type: 'ul' | 'ol'; items: string[] } | null = null;
-
-    const flushList = (key: number) => {
-      if (currentList) {
-        if (currentList.type === 'ul') {
-          elements.push(
-            <ul key={`ul-${key}`} className="my-3 space-y-1.5 list-disc pl-6 text-slate-800 font-normal">
-              {currentList.items.map((item, i) => (
-                <li key={i} dangerouslySetInnerHTML={{ __html: formatInline(item) }} />
-              ))}
-            </ul>
-          );
-        } else {
-          elements.push(
-            <ol key={`ol-${key}`} className="my-3 space-y-1.5 list-decimal pl-6 text-slate-800 font-normal">
-              {currentList.items.map((item, i) => (
-                <li key={i} dangerouslySetInnerHTML={{ __html: formatInline(item) }} />
-              ))}
-            </ol>
-          );
-        }
-        currentList = null;
-      }
-    };
-
-    const formatInline = (text: string): string => {
-      return text
-        .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-        .replace(/`(.*?)`/g, '<code class="bg-slate-100 text-blue-800 px-1 py-0.5 rounded text-xs font-mono">$1</code>');
-    };
-
-    lines.forEach((line, index) => {
-      const trimmed = line.trim();
-
-      if (!trimmed) {
-        flushList(index);
-        return;
-      }
-
-      // Heading 1
-      if (trimmed.startsWith('# ')) {
-        flushList(index);
-        elements.push(
-          <h1
-            key={`h1-${index}`}
-            className="text-2xl sm:text-3xl font-extrabold text-[#010E38] pt-6 pb-2 border-b-2 border-blue-100 tracking-tight"
-          >
-            {trimmed.slice(2)}
-          </h1>
-        );
-        return;
-      }
-
-      // Heading 2
-      if (trimmed.startsWith('## ')) {
-        flushList(index);
-        elements.push(
-          <h2
-            key={`h2-${index}`}
-            className="text-xl sm:text-2xl font-bold text-[#005CBF] pt-5 pb-1.5 border-b border-slate-200 tracking-tight"
-          >
-            {trimmed.slice(3)}
-          </h2>
-        );
-        return;
-      }
-
-      // Heading 3
-      if (trimmed.startsWith('### ')) {
-        flushList(index);
-        elements.push(
-          <h3
-            key={`h3-${index}`}
-            className="text-base sm:text-lg font-bold text-slate-900 pt-3 pb-1"
-          >
-            {trimmed.slice(4)}
-          </h3>
-        );
-        return;
-      }
-
-      // Callout / Blockquote
-      if (trimmed.startsWith('> ')) {
-        flushList(index);
-        elements.push(
-          <div
-            key={`quote-${index}`}
-            className="my-4 p-4 rounded-xl bg-amber-50 border-l-4 border-[#FC7600] text-amber-950 shadow-xs flex items-start gap-3"
-          >
-            <div className="w-2 h-2 rounded-full bg-[#FC7600] mt-2 flex-shrink-0" />
-            <div
-              className="text-sm font-medium leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: formatInline(trimmed.slice(2)) }}
-            />
-          </div>
-        );
-        return;
-      }
-
-      // Unordered list item
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-        if (!currentList || currentList.type !== 'ul') {
-          flushList(index);
-          currentList = { type: 'ul', items: [] };
-        }
-        currentList.items.push(trimmed.slice(2));
-        return;
-      }
-
-      // Ordered list item
-      const numMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
-      if (numMatch) {
-        if (!currentList || currentList.type !== 'ol') {
-          flushList(index);
-          currentList = { type: 'ol', items: [] };
-        }
-        currentList.items.push(numMatch[2]);
-        return;
-      }
-
-      // Standard paragraph
-      flushList(index);
-      elements.push(
-        <p
-          key={`p-${index}`}
-          className="my-3 text-slate-800 text-justify"
-          dangerouslySetInnerHTML={{ __html: formatInline(trimmed) }}
-        />
-      );
-    });
-
-    flushList(lines.length);
-    return elements;
-  };
-
   // Repeating diagonal Notes Study watermark SVG background pattern
-  const watermarkPattern = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220" viewBox="0 0 320 220"><text x="160" y="110" fill="%23010E38" fill-opacity="0.05" font-size="22" font-family="system-ui, -apple-system, sans-serif" font-weight="bold" letter-spacing="1" text-anchor="middle" transform="rotate(-30 160 110)">notesstudy.online</text></svg>`;
+  const watermarkSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240"><g transform="rotate(-30 180 120)" text-anchor="middle" fill="%23010E38" fill-opacity="0.04" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif" font-weight="700"><text x="180" y="110" font-size="20" letter-spacing="1">Notes Study</text><text x="180" y="132" font-size="12" font-weight="600" letter-spacing="0.5">notesstudy.online</text></g></svg>`;
+  const watermarkPattern = `data:image/svg+xml;utf8,${encodeURIComponent(watermarkSvg)}`;
+
+  const sanitizedHtml = sanitizeTextContent(content);
 
   return (
     <div
       id="text-reader-container"
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        if (!isPreview) e.preventDefault();
+      }}
       className={`bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col select-none ${
         isFullscreen ? 'fixed inset-0 z-50 rounded-none border-none' : 'min-h-[85vh]'
       }`}
@@ -254,27 +164,26 @@ export default function TextNoteReader({ note }: TextNoteReaderProps) {
     >
       {/* Reader Controls Toolbar */}
       <div className="bg-slate-950 px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-4 flex-wrap select-none sticky top-0 z-20">
-        
         {/* Document Information */}
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/30">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-xl bg-orange-500/10 text-[#FC7600] border border-orange-500/30 flex-shrink-0">
             <BookOpen className="w-4 h-4" />
           </div>
-          <div>
-            <h2 className="text-xs font-bold text-white max-w-xs sm:max-w-md truncate">
+          <div className="min-w-0">
+            <h2 className="text-xs sm:text-sm font-bold text-white truncate max-w-xs sm:max-w-md">
               {note.title}
             </h2>
             <div className="flex items-center gap-2 text-[10px] text-slate-400">
               <span className="flex items-center gap-1 text-emerald-400 font-semibold">
                 <ShieldCheck className="w-3 h-3" />
-                Protected Text Document
+                {isPreview ? 'Admin Document Preview' : 'Protected Study Material'}
               </span>
               <span>•</span>
-              <span>{note.categoryName}</span>
+              <span className="truncate">{note.categoryName}</span>
               {note.author && (
                 <>
-                  <span>•</span>
-                  <span>By {note.author}</span>
+                  <span className="hidden sm:inline">•</span>
+                  <span className="hidden sm:inline truncate">By {note.author}</span>
                 </>
               )}
             </div>
@@ -285,38 +194,38 @@ export default function TextNoteReader({ note }: TextNoteReaderProps) {
         <div className="flex items-center gap-2">
           {/* Font Size Adjuster */}
           <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 gap-1 text-slate-400">
-            <Type className="w-3.5 h-3.5 text-slate-500" />
+            <Type className="w-3.5 h-3.5 text-slate-500 hidden sm:block" />
             <button
               onClick={() => setFontSize('sm')}
-              className={`text-[11px] px-1.5 py-0.5 rounded font-bold transition-colors ${
-                fontSize === 'sm' ? 'bg-indigo-600 text-white' : 'hover:text-white'
+              className={`text-[11px] px-2 py-0.5 rounded font-bold transition-colors ${
+                fontSize === 'sm' ? 'bg-[#005CBF] text-white' : 'hover:text-white'
               }`}
-              title="Small font"
+              title="Small text"
             >
               A-
             </button>
             <button
               onClick={() => setFontSize('base')}
-              className={`text-[11px] px-1.5 py-0.5 rounded font-bold transition-colors ${
-                fontSize === 'base' ? 'bg-indigo-600 text-white' : 'hover:text-white'
+              className={`text-[11px] px-2 py-0.5 rounded font-bold transition-colors ${
+                fontSize === 'base' ? 'bg-[#005CBF] text-white' : 'hover:text-white'
               }`}
-              title="Normal font"
+              title="Normal text"
             >
               A
             </button>
             <button
               onClick={() => setFontSize('lg')}
-              className={`text-[11px] px-1.5 py-0.5 rounded font-bold transition-colors ${
-                fontSize === 'lg' ? 'bg-indigo-600 text-white' : 'hover:text-white'
+              className={`text-[11px] px-2 py-0.5 rounded font-bold transition-colors ${
+                fontSize === 'lg' ? 'bg-[#005CBF] text-white' : 'hover:text-white'
               }`}
-              title="Large font"
+              title="Large text"
             >
               A+
             </button>
           </div>
 
-          {/* Zoom Buttons */}
-          <div className="hidden sm:flex items-center bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 gap-1">
+          {/* Zoom Buttons (Desktop) */}
+          <div className="hidden md:flex items-center bg-slate-900 border border-slate-800 rounded-xl px-2 py-1 gap-1">
             <button
               onClick={() => setZoomLevel((z) => Math.max(75, z - 10))}
               disabled={zoomLevel <= 75}
@@ -327,8 +236,8 @@ export default function TextNoteReader({ note }: TextNoteReaderProps) {
             </button>
             <span className="text-[11px] font-mono text-slate-300 px-1">{zoomLevel}%</span>
             <button
-              onClick={() => setZoomLevel((z) => Math.min(140, z + 10))}
-              disabled={zoomLevel >= 140}
+              onClick={() => setZoomLevel((z) => Math.min(130, z + 10))}
+              disabled={zoomLevel >= 130}
               className="p-1 hover:text-white text-slate-400 disabled:opacity-40"
               title="Zoom In"
             >
@@ -349,64 +258,213 @@ export default function TextNoteReader({ note }: TextNoteReaderProps) {
 
       {/* Copy Warning Notification Banner */}
       {copyWarning && (
-        <div className="bg-amber-500/10 border-b border-amber-500/20 text-amber-300 text-xs px-4 py-2 flex items-center justify-center gap-2 animate-fadeIn">
-          <AlertCircle className="w-4 h-4 text-amber-400" />
-          <span>Copying, printing, and saving are restricted on Notes Study protected documents.</span>
+        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 text-xs px-4 py-2.5 flex items-center justify-center gap-2 animate-fadeIn transition-all">
+          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <span>Personal Reading License: Copying, printing, and extracting content are restricted.</span>
         </div>
       )}
 
-      {/* Document Workspace (Gray PDF-like backdrop with centered Paper page) */}
-      <div className="flex-1 bg-slate-800/80 p-4 sm:p-8 overflow-y-auto flex justify-center items-start">
-        
-        {/* The Paper Document */}
-        <div
-          className="w-full max-w-4xl bg-white text-slate-900 rounded-2xl shadow-2xl p-8 sm:p-14 relative border border-slate-200 transition-transform duration-150 ease-out"
-          style={{
-            zoom: `${zoomLevel}%`,
-            backgroundImage: `url('${watermarkPattern}')`,
-            backgroundRepeat: 'repeat',
-            backgroundPosition: 'center top'
-          }}
-          onCopy={(e) => {
-            e.preventDefault();
-            triggerCopyWarning();
-          }}
-          onCut={(e) => e.preventDefault()}
-          onDragStart={(e) => e.preventDefault()}
-        >
-          {/* Subtle Document Header Bar */}
-          <div className="flex items-center justify-between border-b-2 border-[#005CBF] pb-4 mb-6 select-none opacity-80">
-            <div>
-              <span className="text-[11px] font-black uppercase tracking-widest text-[#005CBF]">
-                Notes Study • Official Study Material
-              </span>
-              <p className="text-xs text-slate-500 font-medium">www.notesstudy.online</p>
+      {/* Document Workspace (Gray backdrop with centered Paper page) */}
+      <div className="flex-1 bg-slate-850 p-3 sm:p-8 overflow-y-auto flex justify-center items-start">
+        {isLoadingContent ? (
+          <div className="py-24 text-center space-y-3">
+            <Loader2 className="w-8 h-8 text-[#005CBF] animate-spin mx-auto" />
+            <p className="text-xs text-slate-400">Loading protected document content...</p>
+          </div>
+        ) : errorMsg ? (
+          <div className="max-w-md mx-auto my-12 bg-slate-900 border border-slate-800 p-8 rounded-3xl text-center space-y-4">
+            <Lock className="w-10 h-10 text-amber-400 mx-auto" />
+            <h3 className="text-base font-bold text-white">Access Restricted</h3>
+            <p className="text-xs text-slate-400">{errorMsg}</p>
+          </div>
+        ) : (
+          /* The Paper Document Surface */
+          <div
+            className="w-full max-w-4xl bg-white text-slate-900 rounded-2xl shadow-2xl p-6 sm:p-14 relative border border-slate-200 transition-all duration-150 ease-out"
+            style={{
+              zoom: `${zoomLevel}%`,
+              backgroundImage: `url('${watermarkPattern}')`,
+              backgroundRepeat: 'repeat',
+              backgroundPosition: 'center top'
+            }}
+            onCopy={(e) => {
+              if (!isPreview) {
+                e.preventDefault();
+                triggerCopyWarning();
+              }
+            }}
+            onCut={(e) => {
+              if (!isPreview) e.preventDefault();
+            }}
+            onDragStart={(e) => {
+              if (!isPreview) e.preventDefault();
+            }}
+          >
+            {/* Document Header Bar */}
+            <div className="flex items-center justify-between border-b-2 border-[#005CBF] pb-4 mb-6 select-none opacity-85">
+              <div>
+                <span className="text-[10px] sm:text-xs font-black uppercase tracking-wider text-[#005CBF] block">
+                  Notes Study • Digital Topper Notes
+                </span>
+                <p className="text-[11px] text-slate-500 font-medium">notesstudy.online</p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-mono bg-blue-50 text-[#005CBF] px-2.5 py-1 rounded-md font-bold border border-blue-100 inline-block">
+                  Verified Exam Material
+                </span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className="text-[10px] font-mono bg-slate-100 text-slate-600 px-2 py-1 rounded-md font-semibold border border-slate-200">
-                Verified Aspirant Material
+
+            {/* Document Title Header */}
+            <div className="mb-8 pb-4 border-b border-slate-100">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#010E38] tracking-tight">
+                {note.title}
+              </h1>
+              {note.description && (
+                <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed italic">
+                  {note.description}
+                </p>
+              )}
+            </div>
+
+            {/* Formatted Educational Rich Text Content */}
+            <div
+              className={`study-document-content ${fontSizeClasses} select-none relative z-10 text-slate-800 break-words`}
+              dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+            />
+
+            {/* Document Footer Bar */}
+            <div className="mt-14 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 select-none">
+              <span className="font-semibold text-slate-500 text-center sm:text-left">
+                © 2026 Notes Study · Learn • Practice • Grow
+              </span>
+              <span className="font-mono text-[11px] text-slate-400 text-center sm:text-right">
+                Protected Document · notesstudy.online
               </span>
             </div>
           </div>
-
-          {/* Formatted Educational Content */}
-          <div className={`${fontSizeClasses} space-y-2 select-none relative z-10`}>
-            {renderDocumentContent(note.textContent || '')}
-          </div>
-
-          {/* Document Footer Bar */}
-          <div className="mt-12 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400 select-none">
-            <span className="font-semibold text-slate-500">
-              © 2026 Notes Study · Learn • Practice • Grow
-            </span>
-            <span className="font-mono text-[11px] text-slate-400">
-              Digital Document Reader · notesstudy.online
-            </span>
-          </div>
-        </div>
-
+        )}
       </div>
 
+      {/* Styled Scoped Stylesheet for Rich Educational Text */}
+      <style jsx global>{`
+        .study-document-content h1 {
+          font-size: 1.75rem;
+          font-weight: 800;
+          color: #010E38;
+          margin-top: 1.75rem;
+          margin-bottom: 0.75rem;
+          padding-bottom: 0.35rem;
+          border-bottom: 2px solid #e2e8f0;
+          line-height: 1.25;
+        }
+        .study-document-content h2 {
+          font-size: 1.35rem;
+          font-weight: 700;
+          color: #005CBF;
+          margin-top: 1.5rem;
+          margin-bottom: 0.5rem;
+          padding-bottom: 0.25rem;
+          border-bottom: 1px solid #f1f5f9;
+          line-height: 1.3;
+        }
+        .study-document-content h3 {
+          font-size: 1.15rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin-top: 1.25rem;
+          margin-bottom: 0.35rem;
+          line-height: 1.35;
+        }
+        .study-document-content h4 {
+          font-size: 1rem;
+          font-weight: 600;
+          color: #1e293b;
+          margin-top: 1rem;
+          margin-bottom: 0.25rem;
+        }
+        .study-document-content p {
+          margin-top: 0.65rem;
+          margin-bottom: 0.65rem;
+          color: #1e293b;
+          line-height: 1.75;
+        }
+        .study-document-content strong,
+        .study-document-content b {
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .study-document-content em,
+        .study-document-content i {
+          font-style: italic;
+        }
+        .study-document-content u {
+          text-decoration: underline;
+          text-underline-offset: 3px;
+        }
+        .study-document-content blockquote {
+          margin: 1.25rem 0;
+          padding: 1rem 1.25rem;
+          background-color: #fff7ed;
+          border-left: 4px solid #FC7600;
+          border-radius: 0.75rem;
+          color: #7c2d12;
+          font-size: 0.95em;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .study-document-content mark {
+          background-color: #fef08a;
+          color: #713f12;
+          padding: 0.1em 0.35em;
+          border-radius: 0.25rem;
+          font-weight: 600;
+        }
+        .study-document-content ul {
+          list-style-type: disc;
+          padding-left: 1.5rem;
+          margin: 0.75rem 0;
+          space-y: 0.25rem;
+        }
+        .study-document-content ol {
+          list-style-type: decimal;
+          padding-left: 1.5rem;
+          margin: 0.75rem 0;
+          space-y: 0.25rem;
+        }
+        .study-document-content li {
+          margin-top: 0.25rem;
+          margin-bottom: 0.25rem;
+          line-height: 1.6;
+        }
+        .study-document-content code {
+          background-color: #f1f5f9;
+          color: #005CBF;
+          padding: 0.15rem 0.35rem;
+          border-radius: 0.35rem;
+          font-size: 0.85em;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+        .study-document-content hr {
+          border-color: #e2e8f0;
+          margin: 1.5rem 0;
+        }
+        .study-document-content table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 1rem 0;
+          font-size: 0.9em;
+        }
+        .study-document-content th,
+        .study-document-content td {
+          border: 1px solid #cbd5e1;
+          padding: 0.5rem 0.75rem;
+          text-align: left;
+        }
+        .study-document-content th {
+          background-color: #f8fafc;
+          font-weight: 700;
+        }
+      `}</style>
     </div>
   );
 }

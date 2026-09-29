@@ -108,7 +108,7 @@ export async function GET(request: NextRequest) {
       salesCount: n.salesCount,
       rating: n.rating,
       contentType: n.contentType || 'PDF',
-      textContent: n.textContent,
+      textContent: isAdmin ? n.textContent : null,
       createdAt: n.createdAt.toISOString()
     }));
 
@@ -135,9 +135,11 @@ export async function POST(request: NextRequest) {
 
     const data = result.data;
 
-    if (data.contentType === 'TEXT' && (!data.textContent || !data.textContent.trim())) {
+    const sanitizedContent = data.textContent ? sanitizeTextContent(data.textContent) : null;
+
+    if (data.contentType === 'TEXT' && (!sanitizedContent || !sanitizedContent.trim())) {
       return NextResponse.json(
-        { success: false, error: 'Text content is required for TEXT notes' },
+        { success: false, error: 'Valid educational text content is required for Text notes' },
         { status: 400 }
       );
     }
@@ -149,7 +151,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sanitizedContent = data.textContent ? sanitizeTextContent(data.textContent) : null;
+    const wordCount = sanitizedContent ? sanitizedContent.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(Boolean).length : 0;
+    const computedPages = data.contentType === 'TEXT' ? Math.max(1, Math.ceil(wordCount / 250)) : data.pages;
+
     const slug = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
     const note = await prisma.note.create({
@@ -167,8 +171,8 @@ export async function POST(request: NextRequest) {
         subCategoryId: data.subCategoryId,
         author: data.author.trim(),
         institute: data.institute?.trim(),
-        pages: data.pages,
-        fileSize: data.contentType === 'TEXT' ? 'Text Document' : data.fileSize,
+        pages: computedPages,
+        fileSize: data.contentType === 'TEXT' ? `${Math.max(1, Math.round(wordCount * 0.005))} KB Text Document` : data.fileSize,
         sampleText: data.sampleText,
         status: data.status,
         featured: data.featured,

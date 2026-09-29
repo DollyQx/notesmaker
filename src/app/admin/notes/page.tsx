@@ -22,6 +22,8 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import Link from 'next/link';
+import EducationalTextEditor from '@/components/admin/EducationalTextEditor';
+import TextNoteReader from '@/components/TextNoteReader';
 
 export default function AdminNotesPage() {
   const { notes, categories, subcategories, addNote, updateNote, deleteNote, isLoading } = useData();
@@ -29,6 +31,7 @@ export default function AdminNotesPage() {
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   // Form & Feedback states
   const [contentType, setContentType] = useState<'PDF' | 'TEXT'>('PDF');
@@ -164,14 +167,20 @@ export default function AdminNotesPage() {
     e.preventDefault();
     if (!title.trim() || !categoryId || !subCategoryId) return;
 
-    if (contentType === 'PDF' && !editingNote && !pdfFileRef) {
-      setErrorMsg('Please upload a PDF document before saving.');
-      return;
+    if (contentType === 'PDF') {
+      const hasPdf = pdfFileRef || (editingNote && editingNote.pdfUrl);
+      if (!hasPdf) {
+        setErrorMsg('Please upload a PDF document before saving.');
+        return;
+      }
     }
 
-    if (contentType === 'TEXT' && !textContent.trim()) {
-      setErrorMsg('Please enter educational text content before saving.');
-      return;
+    if (contentType === 'TEXT') {
+      const cleanText = textContent.replace(/<[^>]*>/g, '').trim();
+      if (!cleanText && !textContent.trim()) {
+        setErrorMsg('Please enter formatted educational text content before saving.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -179,8 +188,9 @@ export default function AdminNotesPage() {
 
     const parsedPrice = parseFloat(price) || 99;
     const parsedOrigPrice = parseFloat(originalPrice) || undefined;
-    const parsedPages = parseInt(pages) || (contentType === 'TEXT' ? Math.max(1, Math.ceil(textContent.split(/\s+/).length / 300)) : 50);
-    const calculatedFileSize = contentType === 'TEXT' ? `${Math.max(1, Math.round(new Blob([textContent]).size / 1024))} KB` : fileSize;
+    const wordCount = textContent.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(Boolean).length;
+    const parsedPages = parseInt(pages) || (contentType === 'TEXT' ? Math.max(1, Math.ceil(wordCount / 250)) : 50);
+    const calculatedFileSize = contentType === 'TEXT' ? `${Math.max(1, Math.round(wordCount * 0.005))} KB Text Document` : fileSize;
 
     let res;
     if (editingNote) {
@@ -199,8 +209,8 @@ export default function AdminNotesPage() {
         featured,
         isBestseller,
         contentType,
-        textContent: contentType === 'TEXT' ? textContent.trim() : undefined,
-        pdfUrl: contentType === 'PDF' ? (pdfFileRef || editingNote.pdfUrl) : undefined
+        textContent: contentType === 'TEXT' ? textContent : editingNote.textContent,
+        pdfUrl: contentType === 'PDF' ? (pdfFileRef || editingNote.pdfUrl) : editingNote.pdfUrl
       });
     } else {
       res = await addNote({
@@ -218,7 +228,7 @@ export default function AdminNotesPage() {
         featured,
         isBestseller,
         contentType,
-        textContent: contentType === 'TEXT' ? textContent.trim() : undefined,
+        textContent: contentType === 'TEXT' ? textContent : undefined,
         pdfUrl: contentType === 'PDF' ? (pdfFileRef || '') : undefined
       });
     }
@@ -426,7 +436,7 @@ export default function AdminNotesPage() {
       {/* Note Form Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-8">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-8">
             <div className="flex justify-between items-center border-b border-slate-800 pb-3">
               <h3 className="font-bold text-white text-base flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-400" />
@@ -462,7 +472,7 @@ export default function AdminNotesPage() {
                     }`}
                   >
                     <FileText className="w-4 h-4" />
-                    <span>PDF Document</span>
+                    <span>PDF Note</span>
                   </button>
                   <button
                     type="button"
@@ -474,7 +484,7 @@ export default function AdminNotesPage() {
                     }`}
                   >
                     <FileCheck className="w-4 h-4" />
-                    <span>Rich Text Note</span>
+                    <span>Text Note</span>
                   </button>
                 </div>
               </div>
@@ -521,34 +531,29 @@ export default function AdminNotesPage() {
 
               {/* Rich Text Editor Box */}
               {contentType === 'TEXT' && (
-                <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-2">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                      Educational Text Content
+                      Educational Text Note Content &amp; Formatting
                     </label>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      {textContent.trim().split(/\s+/).filter(Boolean).length} words · {textContent.length} chars
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsPreviewModalOpen(true)}
+                      className="text-xs text-[#005CBF] hover:text-blue-400 font-bold flex items-center gap-1 transition-colors"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Preview Student View</span>
+                    </button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1 p-2 bg-slate-900 rounded-lg border border-slate-800 text-[11px] text-slate-400">
-                    <span className="font-semibold text-slate-300 mr-1">Formatting:</span>
-                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300"># Heading 1</span>
-                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">## Heading 2</span>
-                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">**bold**</span>
-                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">- bullet</span>
-                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">1. ordered</span>
-                    <span className="bg-slate-800 px-1.5 py-0.5 rounded text-slate-300">&gt; key note</span>
-                  </div>
-                  <textarea
-                    rows={12}
+                  <EducationalTextEditor
                     value={textContent}
-                    onChange={(e) => setTextContent(e.target.value)}
-                    placeholder="Enter comprehensive study notes here...&#10;&#10;# Chapter 1: Constitutional Framework&#10;&#10;## Key Concepts&#10;- Preamble as guiding light&#10;- Fundamental Rights (Part III)&#10;- Directive Principles of State Policy (Part IV)&#10;&#10;> Important Note for Prelims: Article 21 guarantees protection of life and personal liberty."
-                    className="w-full px-3.5 py-3 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-orange-500 font-mono leading-relaxed"
+                    onChange={setTextContent}
+                    onPreview={() => setIsPreviewModalOpen(true)}
+                    placeholder="Enter comprehensive study notes here..."
                   />
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>XSS protected: Automatically sanitized and served with Notes Study watermark in reader.</span>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    <span>Educational Rich Text: Sanitized server-side. Formatted with watermark &amp; copy restrictions for students.</span>
                   </p>
                 </div>
               )}
@@ -742,6 +747,63 @@ export default function AdminNotesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Student Preview Modal */}
+      {isPreviewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full p-4 sm:p-6 space-y-4 shadow-2xl my-6 flex flex-col max-h-[95vh]">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <Eye className="w-5 h-5 text-[#005CBF] flex-shrink-0" />
+                <h3 className="font-bold text-white text-base truncate max-w-md sm:max-w-xl">
+                  Admin Document Preview • {title || 'Untitled Note'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPreviewModalOpen(false)}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+                <span>Close Preview</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto rounded-2xl">
+              <TextNoteReader
+                note={{
+                  id: editingNote?.id || 'admin-preview',
+                  title: title || 'Educational Note Document',
+                  slug: 'preview-slug',
+                  description: description || 'Note preview description',
+                  price: parseFloat(price) || 0,
+                  originalPrice: parseFloat(originalPrice) || 0,
+                  pdfUrl: '',
+                  thumbnail: '',
+                  categoryId: categoryId || 'general',
+                  categoryName: categories.find((c) => c.id === categoryId)?.name || 'General',
+                  subCategoryId: subCategoryId || 'general',
+                  subCategoryName: subcategories.find((s) => s.id === subCategoryId)?.name || 'General',
+                  author: author || 'Admin Contributor',
+                  institute: institute || 'Institute',
+                  pages: parseInt(pages) || 1,
+                  fileSize: 'Text Document',
+                  status: 'ACTIVE',
+                  featured: false,
+                  isBestseller: false,
+                  salesCount: 0,
+                  rating: 5,
+                  contentType: 'TEXT',
+                  textContent: textContent || '<p>No content entered yet.</p>',
+                  createdAt: new Date().toISOString()
+                }}
+                isPreview={true}
+                directContent={textContent || '<p>No content entered yet.</p>'}
+              />
+            </div>
           </div>
         </div>
       )}
