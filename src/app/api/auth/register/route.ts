@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
-import { hashPassword, signToken, COOKIE_NAME } from '@/lib/auth';
+import {
+  hashPassword,
+  signToken,
+  COOKIE_NAME,
+  DEVICE_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+  createPersistentSession,
+  getOrCreateDeviceId
+} from '@/lib/auth';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -39,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await hashPassword(password);
 
-    // SECURITY: Force role to STUDENT regardless of any request body tampering!
+    // SECURITY: Force role to STUDENT regardless of any request body tampering
     const newUser = await prisma.user.create({
       data: {
         name,
@@ -50,14 +58,33 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    const tokenPayload = {
+    const userAgent = request.headers.get('user-agent') || 'Unknown Browser';
+    const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || '127.0.0.1';
+    const { deviceId } = getOrCreateDeviceId(request);
+
+    // Register initial device as verified (Device 1)
+    await prisma.userDevice.create({
+      data: {
+        userId: newUser.id,
+        deviceIdentifier: deviceId,
+        isVerified: true,
+        firstSeenAt: new Date(),
+        lastLoginAt: new Date(),
+        ipAddress,
+        userAgent: userAgent.slice(0, 500)
+      }
+    });
+
+    // Create persistent server-side session
+    const { sessionToken } = await createPersistentSession(newUser.id, deviceId, ipAddress, userAgent);
+
+    const token = signToken({
       userId: newUser.id,
       email: newUser.email,
       name: newUser.name,
-      role: newUser.role as 'STUDENT' | 'ADMIN'
-    };
-
-    const token = signToken(tokenPayload);
+      role: 'STUDENT',
+      sessionId: sessionToken
+    });
 
     const response = NextResponse.json({
       success: true,
@@ -70,12 +97,21 @@ export async function POST(request: NextRequest) {
       }
     });
 
-    // Set secure HTTP-only cookie
+    // Set persistent session cookie (30 days)
     response.cookies.set(COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
+      maxAge: SESSION_MAX_AGE_SECONDS,
+      path: '/'
+    });
+
+    // Set device identifier cookie
+    response.cookies.set(DEVICE_COOKIE_NAME, deviceId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 365 * 24 * 60 * 60,
       path: '/'
     });
 
@@ -83,7 +119,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Register API Error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create student account' },
+      { success: false, error: 'Registration failed. Please try again.' },
       { status: 500 }
     );
   }

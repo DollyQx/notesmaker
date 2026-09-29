@@ -170,12 +170,13 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
             setIsPurchasing(false);
 
             if (verifyData.success) {
-              setPurchaseSuccess('Payment verified successfully! Redirecting to PDF reader...');
-              unlockNote(note.id);
+              setPurchaseSuccess('Payment verified successfully! Redirecting to My Notes...');
+              await unlockNote(note.id);
               setTimeout(() => {
                 setShowUnlockModal(false);
-                router.push(`/my-notes/${note.id}/read`);
-              }, 1200);
+                router.push('/my-notes');
+                router.refresh();
+              }, 1000);
             } else {
               setPurchaseError(verifyData.error || 'Payment signature verification failed');
             }
@@ -370,7 +371,9 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                 </div>
                 <div className="flex justify-between py-1 border-t border-gray-50">
                   <span className="text-gray-500">File Format:</span>
-                  <span className="font-bold text-gray-900">Protected PDF</span>
+                  <span className="font-bold text-gray-900">
+                    {note.contentType === 'TEXT' ? 'Educational Text Note' : 'Protected PDF'}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1 border-t border-gray-50">
                   <span className="text-gray-500">File Size:</span>
@@ -386,10 +389,10 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
               {isUnlocked ? (
                 <Link
                   href={`/my-notes/${note.id}/read`}
-                  className="w-full block text-center bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm py-3.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
+                  className="w-full block text-center bg-[#005CBF] hover:bg-[#004a9e] text-white font-bold text-sm py-3.5 rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <BookOpen className="w-4 h-4" />
-                  <span>Read Note PDF Now</span>
+                  <span>{note.contentType === 'TEXT' ? 'Read Note Document Now' : 'Read Note PDF Now'}</span>
                 </Link>
               ) : (
                 <button
@@ -400,7 +403,7 @@ export default function NoteDetailsPage({ params }: { params: Promise<{ id: stri
                       setShowUnlockModal(true);
                     }
                   }}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3.5 rounded-xl shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-[#FC7600] hover:bg-[#e06900] text-white font-bold text-sm py-3.5 rounded-xl shadow-xl shadow-orange-500/20 transition-all flex items-center justify-center gap-2"
                 >
                   <Zap className="w-4 h-4 fill-white" />
                   <span>Purchase & Unlock Note (₹{note.price})</span>

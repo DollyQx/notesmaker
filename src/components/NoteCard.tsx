@@ -32,13 +32,18 @@ export default function NoteCard({ note }: NoteCardProps) {
           </span>
 
           <div className="flex items-center gap-1">
+            {note.contentType === 'TEXT' && (
+              <span className="bg-[#FC7600] text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs uppercase tracking-wider">
+                Text Note
+              </span>
+            )}
             {note.isBestseller && (
               <span className="bg-amber-400 text-amber-950 text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs uppercase tracking-wider">
                 Bestseller
               </span>
             )}
             {note.featured && !note.isBestseller && (
-              <span className="bg-indigo-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs uppercase tracking-wider">
+              <span className="bg-[#005CBF] text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs uppercase tracking-wider">
                 Featured
               </span>
             )}
@@ -48,11 +53,13 @@ export default function NoteCard({ note }: NoteCardProps) {
         <div className="relative z-10 flex items-end justify-between">
           <div className="flex items-center gap-2 text-white/90">
             <div className="p-2 rounded-lg bg-white/10 border border-white/15">
-              <FileText className="w-5 h-5 text-indigo-300" />
+              <FileText className="w-5 h-5 text-blue-300" />
             </div>
             <div>
               <p className="text-[11px] text-white/70 font-medium">{note.subCategoryName}</p>
-              <p className="text-xs font-semibold text-white">{note.pages} Pages • PDF</p>
+              <p className="text-xs font-semibold text-white">
+                {note.pages} Pages • {note.contentType === 'TEXT' ? 'Text Note' : 'PDF'}
+              </p>
             </div>
           </div>
 
@@ -108,15 +115,15 @@ export default function NoteCard({ note }: NoteCardProps) {
           {isPurchased ? (
             <Link
               href={`/my-notes/${note.id}/read`}
-              className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-colors shadow-xs"
+              className="inline-flex items-center gap-1.5 bg-[#005CBF] hover:bg-[#004a9e] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-colors shadow-xs"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Read PDF</span>
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+              <span>{note.contentType === 'TEXT' ? 'Read Note' : 'Read PDF'}</span>
             </Link>
           ) : (
             <Link
               href={`/notes/${note.id}`}
-              className="inline-flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-colors shadow-xs group-hover:translate-x-0.5"
+              className="inline-flex items-center gap-1 bg-[#005CBF] hover:bg-[#004a9e] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-colors shadow-xs group-hover:translate-x-0.5"
             >
               <span>View Details</span>
               <ArrowRight className="w-3.5 h-3.5" />

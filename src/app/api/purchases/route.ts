@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireStudentOrAdmin } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const purchaseSchema = z.object({
   noteId: z.string().min(1, 'Note ID is required'),
   targetStudentId: z.string().optional() // Only allowed when called by ADMIN
@@ -105,11 +108,18 @@ export async function GET(request: NextRequest) {
 
     const noteIds = purchases.map((p: any) => p.noteId);
 
-    return NextResponse.json({
-      success: true,
-      purchasedNoteIds: noteIds,
-      purchases
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        purchasedNoteIds: noteIds,
+        purchases
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
+      }
+    );
   } catch (error) {
     return NextResponse.json({ success: false, error: 'Failed to fetch student library' }, { status: 500 });
   }

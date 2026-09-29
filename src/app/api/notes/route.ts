@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireAdmin, getAuthUser } from '@/lib/auth';
+import { sanitizeTextContent } from '@/lib/sanitize';
 
 const noteSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
@@ -19,7 +20,9 @@ const noteSchema = z.object({
   sampleText: z.string().optional(),
   status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).default('ACTIVE'),
   featured: z.boolean().default(false),
-  isBestseller: z.boolean().default(false)
+  isBestseller: z.boolean().default(false),
+  contentType: z.enum(['PDF', 'TEXT']).default('PDF'),
+  textContent: z.string().optional()
 });
 
 export async function GET(request: NextRequest) {
@@ -104,6 +107,8 @@ export async function GET(request: NextRequest) {
       featured: n.featured,
       salesCount: n.salesCount,
       rating: n.rating,
+      contentType: n.contentType || 'PDF',
+      textContent: n.textContent,
       createdAt: n.createdAt.toISOString()
     }));
 
@@ -129,6 +134,22 @@ export async function POST(request: NextRequest) {
     }
 
     const data = result.data;
+
+    if (data.contentType === 'TEXT' && (!data.textContent || !data.textContent.trim())) {
+      return NextResponse.json(
+        { success: false, error: 'Text content is required for TEXT notes' },
+        { status: 400 }
+      );
+    }
+
+    if (data.contentType === 'PDF' && !data.pdfUrl) {
+      return NextResponse.json(
+        { success: false, error: 'PDF file is required for PDF notes' },
+        { status: 400 }
+      );
+    }
+
+    const sanitizedContent = data.textContent ? sanitizeTextContent(data.textContent) : null;
     const slug = data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
     const note = await prisma.note.create({
@@ -138,14 +159,16 @@ export async function POST(request: NextRequest) {
         description: data.description.trim(),
         price: data.price,
         originalPrice: data.originalPrice,
-        pdfUrl: data.pdfUrl || `/api/notes/note-demo/pdf`,
+        contentType: data.contentType,
+        textContent: sanitizedContent,
+        pdfUrl: data.contentType === 'PDF' ? (data.pdfUrl || `/api/notes/note-demo/pdf`) : null,
         thumbnail: data.thumbnail,
         categoryId: data.categoryId,
         subCategoryId: data.subCategoryId,
         author: data.author.trim(),
         institute: data.institute?.trim(),
         pages: data.pages,
-        fileSize: data.fileSize,
+        fileSize: data.contentType === 'TEXT' ? 'Text Document' : data.fileSize,
         sampleText: data.sampleText,
         status: data.status,
         featured: data.featured,

@@ -17,7 +17,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  purchases Purchase[]
+  purchases           Purchase[]
+  sessions            UserSession[]
+  devices             UserDevice[]
+  deviceVerifications DeviceVerification[]
 }
 
 model Category {
@@ -50,7 +53,9 @@ model Note {
   description    String   @db.Text
   price          Float
   originalPrice  Float?
-  pdfUrl         String   @db.Text
+  contentType    String   @default("PDF") // 'PDF' | 'TEXT'
+  textContent    String?  @db.LongText   // Structured educational note text
+  pdfUrl         String?  @db.Text       // Internal protected reference (optional for TEXT notes)
   categoryId     String
   subCategoryId  String
   thumbnail      String?  @db.Text
@@ -85,4 +90,57 @@ model Purchase {
 
   student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
   note    Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+// Persistent server-side session with rolling renewal and explicit revocation
+model UserSession {
+  id               String   @id @default(cuid())
+  sessionToken     String   @unique @db.VarChar(255)
+  userId           String
+  deviceIdentifier String?  @db.VarChar(255)
+  ipAddress        String?  @db.VarChar(100)
+  userAgent        String?  @db.Text
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  lastActiveAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sessionToken])
+}
+
+// Student device tracking for rolling 48-hour login security
+model UserDevice {
+  id               String   @id @default(cuid())
+  userId           String
+  deviceIdentifier String   @db.VarChar(255)
+  deviceName       String?  @db.VarChar(255)
+  ipAddress        String?  @db.VarChar(100)
+  userAgent        String?  @db.Text
+  isVerified       Boolean  @default(false)
+  firstSeenAt      DateTime @default(now())
+  lastLoginAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceIdentifier])
+  @@index([userId, firstSeenAt])
+  @@index([userId, lastLoginAt])
+}
+
+// Secure single-use OTP verification codes for new device authorization
+model DeviceVerification {
+  id               String    @id @default(cuid())
+  userId           String
+  deviceIdentifier String    @db.VarChar(255)
+  otpHash          String    @db.VarChar(255)
+  attempts         Int       @default(0)
+  expiresAt        DateTime
+  usedAt           DateTime?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, deviceIdentifier])
 }

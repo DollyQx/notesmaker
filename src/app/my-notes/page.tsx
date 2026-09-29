@@ -19,37 +19,49 @@ import {
 
 export default function MyNotesPage() {
   const { notes } = useData();
-  const { user, purchasedNoteIds } = useAuth();
+  const { user, purchasedNoteIds, fetchPurchases } = useAuth();
   const [purchasesList, setPurchasesList] = useState<any[]>([]);
-  const [isLoadingPurchases, setIsLoadingPurchases] = useState(false);
+  const [isLoadingPurchases, setIsLoadingPurchases] = useState(true);
 
   useEffect(() => {
     if (user) {
       setIsLoadingPurchases(true);
-      fetch('/api/purchases')
+      fetch('/api/purchases', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
         .then(res => res.json())
         .then(data => {
           setIsLoadingPurchases(false);
           if (data.success && data.purchases) {
             setPurchasesList(data.purchases);
+            if (fetchPurchases) {
+              fetchPurchases();
+            }
           }
         })
         .catch(() => setIsLoadingPurchases(false));
+    } else {
+      setIsLoadingPurchases(false);
     }
   }, [user]);
 
   // Combine DB purchases with Context state
-  const purchasedNotes = notes.filter(n => user?.role === 'ADMIN' || purchasedNoteIds.includes(n.id));
+  const purchasedNotes = notes.filter(
+    n => user?.role === 'ADMIN' || purchasedNoteIds.includes(n.id) || purchasesList.some(p => p.noteId === n.id)
+  );
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Navbar />
 
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white py-12 px-4 sm:px-6 lg:px-8 border-b border-slate-800">
+      <div className="bg-gradient-to-r from-[#010E38] via-[#002B66] to-[#010E38] text-white py-12 px-4 sm:px-6 lg:px-8 border-b border-slate-800">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs text-indigo-400 font-bold uppercase tracking-wider mb-2">
+            <div className="flex items-center gap-2 text-xs text-[#FC7600] font-bold uppercase tracking-wider mb-2">
               <FileText className="w-4 h-4" />
               <span>Student Personal Library</span>
             </div>
@@ -61,7 +73,7 @@ export default function MyNotesPage() {
             </p>
           </div>
 
-          <div className="hidden sm:block bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-bold px-4 py-2 rounded-2xl">
+          <div className="hidden sm:block bg-white/10 border border-white/20 text-blue-200 text-xs font-bold px-4 py-2 rounded-2xl">
             {purchasedNotes.length} Notes Unlocked
           </div>
         </div>
@@ -113,9 +125,18 @@ export default function MyNotesPage() {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between text-xs">
                         <span className="bg-emerald-50 text-emerald-700 font-bold px-2.5 py-1 rounded-md border border-emerald-200/60 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> COMPLETED
+                          <CheckCircle2 className="w-3 h-3" /> UNLOCKED
                         </span>
-                        <span className="text-gray-400 font-medium">{note.pages} Pages</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                            note.contentType === 'TEXT'
+                              ? 'bg-orange-100 text-orange-700 border border-orange-200'
+                              : 'bg-blue-100 text-blue-700 border border-blue-200'
+                          }`}>
+                            {note.contentType === 'TEXT' ? 'Text Note' : 'PDF'}
+                          </span>
+                          <span className="text-gray-400 font-medium">{note.pages} Pages</span>
+                        </div>
                       </div>
 
                       <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2">
@@ -129,15 +150,15 @@ export default function MyNotesPage() {
                       <div className="text-[11px] text-gray-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 space-y-1">
                         <div className="flex justify-between items-center">
                           <span className="text-gray-500 flex items-center gap-1">
-                            <Calendar className="w-3 h-3 text-indigo-500" /> Date:
+                            <Calendar className="w-3 h-3 text-[#005CBF]" /> Date:
                           </span>
                           <span className="font-semibold text-gray-800">{purchaseDate}</span>
                         </div>
                         <div className="flex justify-between items-center pt-1 border-t border-slate-100">
                           <span className="text-gray-500 flex items-center gap-1">
-                            <CreditCard className="w-3 h-3 text-indigo-500" /> Amount Paid:
+                            <CreditCard className="w-3 h-3 text-[#005CBF]" /> Amount Paid:
                           </span>
-                          <span className="font-bold text-indigo-600">₹{pRecord ? pRecord.amount : note.price}</span>
+                          <span className="font-bold text-[#005CBF]">₹{pRecord ? pRecord.amount : note.price}</span>
                         </div>
                       </div>
                     </div>
@@ -149,10 +170,10 @@ export default function MyNotesPage() {
 
                       <Link
                         href={`/my-notes/${note.id}/read`}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
+                        className="bg-[#005CBF] hover:bg-[#004a9e] text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center gap-1.5"
                       >
                         <BookOpen className="w-4 h-4" />
-                        <span>Read Note</span>
+                        <span>{note.contentType === 'TEXT' ? 'Read Note' : 'Read PDF'}</span>
                       </Link>
                     </div>
                   </div>

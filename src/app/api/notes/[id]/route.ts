@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireAdmin, getAuthUser } from '@/lib/auth';
 import { deletePdfFromStorage } from '@/lib/storage';
+import { sanitizeTextContent } from '@/lib/sanitize';
 
 const updateNoteSchema = z.object({
   title: z.string().min(3).optional(),
@@ -18,7 +19,9 @@ const updateNoteSchema = z.object({
   status: z.enum(['ACTIVE', 'DRAFT', 'ARCHIVED']).optional(),
   featured: z.boolean().optional(),
   isBestseller: z.boolean().optional(),
-  pdfUrl: z.string().optional()
+  pdfUrl: z.string().optional(),
+  contentType: z.enum(['PDF', 'TEXT']).optional(),
+  textContent: z.string().optional()
 });
 
 export async function GET(
@@ -79,9 +82,14 @@ export async function PUT(
       );
     }
 
+    const updateData = { ...result.data };
+    if (updateData.textContent !== undefined && updateData.textContent !== null) {
+      updateData.textContent = sanitizeTextContent(updateData.textContent);
+    }
+
     const updated = await prisma.note.update({
       where: { id },
-      data: result.data
+      data: updateData
     });
 
     return NextResponse.json({ success: true, note: updated });

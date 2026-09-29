@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import Logo from '@/components/Logo';
 import {
   LayoutDashboard,
   FolderTree,
@@ -137,14 +138,11 @@ export default function AdminLayout({
         <div className="space-y-8">
           
           {/* Logo Header */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-extrabold shadow-lg">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="font-extrabold text-sm text-white tracking-tight">Notes Study</h2>
-              <p className="text-[10px] text-amber-400 font-mono font-bold">Admin Console</p>
-            </div>
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <Logo variant="dark" size="sm" showTagline={false} />
+            <span className="text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded-full border border-amber-500/30">
+              Admin
+            </span>
           </div>
 
           {/* Nav Items */}

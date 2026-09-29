@@ -2,17 +2,18 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { BookOpen, ShieldCheck, DownloadCloud, Award, Lock, Heart } from 'lucide-react';
+import Logo from '@/components/Logo';
+import { ShieldCheck, DownloadCloud, Award, Lock, Heart } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="bg-slate-900 text-slate-300 pt-12 pb-8 border-t border-slate-800 mt-20">
+    <footer className="bg-[#010E38] text-slate-300 pt-12 pb-8 border-t border-[#005CBF]/30 mt-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Value Props Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pb-10 border-b border-slate-800">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pb-10 border-b border-slate-800/80">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center border border-indigo-500/20">
+            <div className="w-10 h-10 rounded-xl bg-[#005CBF]/15 text-[#0071D1] flex items-center justify-center border border-[#005CBF]/30">
               <Award className="w-5 h-5" />
             </div>
             <div>
@@ -22,17 +23,17 @@ export default function Footer() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20">
+            <div className="w-10 h-10 rounded-xl bg-[#FC7600]/15 text-[#FC7600] flex items-center justify-center border border-[#FC7600]/30">
               <Lock className="w-5 h-5" />
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white">Secure Access</h4>
-              <p className="text-xs text-slate-400">Instant PDF web reader</p>
+              <p className="text-xs text-slate-400">Instant PDF & text web reader</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
@@ -42,12 +43,12 @@ export default function Footer() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
+            <div className="w-10 h-10 rounded-xl bg-[#005CBF]/15 text-[#0071D1] flex items-center justify-center border border-[#005CBF]/30">
               <DownloadCloud className="w-5 h-5" />
             </div>
             <div>
               <h4 className="text-sm font-semibold text-white">Lifetime Access</h4>
-              <p className="text-xs text-slate-400">Read anywhere on any device</p>
+              <p className="text-xs text-slate-400">Read anywhere on your device</p>
             </div>
           </div>
         </div>
@@ -55,14 +56,9 @@ export default function Footer() {
         {/* Footer Links Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 py-10">
           <div className="space-y-4 md:col-span-1">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
-                <BookOpen className="w-4 h-4" />
-              </div>
-              <span className="font-extrabold text-lg text-white tracking-tight">Notes Study</span>
-            </div>
+            <Logo variant="dark" size="md" showTagline={true} />
             <p className="text-xs text-slate-400 leading-relaxed">
-              India&apos;s lightweight digital notes marketplace for university students, competitive exam aspirants & lifelong learners.
+              India&apos;s digital study notes marketplace for UPSC, BPSC, State PCS & competitive examination aspirants.
             </p>
           </div>
 
@@ -77,12 +73,13 @@ export default function Footer() {
           </div>
 
           <div>
-            <h5 className="text-xs font-bold uppercase tracking-wider text-slate-200 mb-3">Quick Navigation</h5>
+            <h5 className="text-xs font-bold uppercase tracking-wider text-slate-200 mb-3">Quick Links</h5>
             <ul className="space-y-2 text-xs">
-              <li><Link href="/notes" className="hover:text-indigo-400 transition-colors">Browse Notes Marketplace</Link></li>
-              <li><Link href="/my-notes" className="hover:text-indigo-400 transition-colors">My Purchased Notes</Link></li>
-              <li><Link href="/login" className="hover:text-indigo-400 transition-colors">Student Login</Link></li>
-              <li><Link href="/admin/login" className="hover:text-indigo-400 transition-colors">Admin Portal</Link></li>
+              <li><Link href="/" className="hover:text-blue-400 transition-colors">Home</Link></li>
+              <li><Link href="/notes" className="hover:text-blue-400 transition-colors">Browse Notes</Link></li>
+              <li><Link href="/about" className="hover:text-blue-400 transition-colors">About Us</Link></li>
+              <li><Link href="/contact" className="hover:text-blue-400 transition-colors">Contact Us</Link></li>
+              <li><Link href="/terms" className="hover:text-blue-400 transition-colors">Terms & Conditions</Link></li>
             </ul>
           </div>
 

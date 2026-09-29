@@ -114,18 +114,18 @@ function NotesContent() {
       <Navbar />
 
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white py-12 px-4 sm:px-6 lg:px-8 border-b border-slate-800">
+      <div className="bg-gradient-to-r from-[#010E38] via-[#002B66] to-[#010E38] text-white py-12 px-4 sm:px-6 lg:px-8 border-b border-slate-800">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 text-xs text-indigo-400 font-bold uppercase tracking-wider mb-2">
+            <div className="flex items-center gap-2 text-xs text-[#FC7600] font-bold uppercase tracking-wider mb-2">
               <BookOpen className="w-4 h-4" />
-              <span>Student Notes Marketplace</span>
+              <span>Notes Study Catalog</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Explore Published Handwritten Digital Notes
+              Competitive Exam Notes & Resources
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">
-              Instant access to high-yield notes, mind maps, and pyq solutions. Read securely in online PDF viewer.
+              High-yield topper notes, answer writing frameworks, and syllabus compilations for UPSC, BPSC, UPPSC, BSSC and state exams.
             </p>
           </div>
 
@@ -135,8 +135,8 @@ function NotesContent() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search title, subject, author..."
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-800 text-slate-100 placeholder-slate-400 border border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="Search title, subject, exam..."
+              className="w-full pl-9 pr-4 py-2.5 bg-slate-900/90 text-slate-100 placeholder-slate-400 border border-slate-700 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#005CBF]"
             />
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           </div>

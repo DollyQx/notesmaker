@@ -40,6 +40,8 @@ export interface Note {
   isPopular?: boolean;
   isBestseller?: boolean;
   sampleText?: string;
+  contentType?: 'PDF' | 'TEXT';
+  textContent?: string;
   pdfUrl?: string; // Internal protected reference
   thumbnail?: string;
   status?: 'ACTIVE' | 'DRAFT' | 'ARCHIVED';

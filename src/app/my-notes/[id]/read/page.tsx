@@ -1,21 +1,41 @@
 'use client';
 
-import React, { use } from 'react';
+import React, { use, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import PdfViewer from '@/components/PdfViewer';
+import TextNoteReader from '@/components/TextNoteReader';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
-import { Lock, ArrowLeft, ShieldAlert, BookOpen } from 'lucide-react';
+import { Lock, ArrowLeft, ShieldAlert, BookOpen, Loader2 } from 'lucide-react';
 
 export default function PdfReadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { getNoteById } = useData();
-  const { hasPurchased } = useAuth();
+  const { user, hasPurchased, fetchPurchases, isLoading } = useAuth();
 
   const note = getNoteById(id);
   const isUnlocked = hasPurchased(id);
+
+  // Automatically reconcile with server database if not unlocked locally
+  useEffect(() => {
+    if (user && !isUnlocked && fetchPurchases) {
+      fetchPurchases();
+    }
+  }, [user, isUnlocked, fetchPurchases]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-slate-950 text-white">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center p-6 text-center">
+          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!note) {
     return (
@@ -83,7 +103,11 @@ export default function PdfReadPage({ params }: { params: Promise<{ id: string }
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10 w-full flex-1">
-        <PdfViewer note={note} />
+        {note.contentType === 'TEXT' ? (
+          <TextNoteReader note={note} />
+        ) : (
+          <PdfViewer note={note} />
+        )}
       </div>
 
       <Footer />
