@@ -45,6 +45,9 @@ export interface Note {
   pdfUrl?: string; // Internal protected reference
   thumbnail?: string;
   status?: 'ACTIVE' | 'DRAFT' | 'ARCHIVED';
+  demoEnabled?: boolean;
+  demoContent?: string;
+  demoPdfUrl?: string;
   tags?: string[];
   createdAt?: string;
   updatedAt?: string;
@@ -54,6 +57,7 @@ export interface Student {
   id: string;
   name: string;
   email: string;
+  mobileNumber?: string;
   phone?: string;
   college?: string;
   joinedDate: string;
@@ -83,4 +87,5 @@ export interface UserSession {
   email: string;
   role: 'STUDENT' | 'ADMIN' | 'student' | 'admin';
   college?: string;
+  mobileNumber?: string;
 }

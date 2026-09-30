@@ -138,12 +138,12 @@ export default function EducationalTextEditor({
   const charCount = rawText.length;
 
   return (
-    <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex flex-col shadow-inner">
-      {/* Document Toolbar */}
-      <div className="bg-slate-900 p-2 border-b border-slate-800 flex flex-wrap items-center gap-1 text-slate-300 select-none">
+    <div className="bg-slate-950 border border-slate-800 rounded-xl sm:rounded-2xl overflow-hidden flex flex-col shadow-inner w-full min-w-0 max-w-full">
+      {/* Document Toolbar with internal horizontal scrolling on mobile */}
+      <div className="bg-slate-900 p-1.5 sm:p-2 border-b border-slate-800 flex items-center gap-1 sm:gap-1.5 text-slate-300 select-none overflow-x-auto max-w-full scrollbar-thin">
         
         {/* Block Format (H1, H2, H3, P) */}
-        <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
+        <div className="flex-shrink-0 flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
           <button
             type="button"
             onClick={() => applyFormatBlock('p')}
@@ -184,7 +184,7 @@ export default function EducationalTextEditor({
         <div className="h-5 w-px bg-slate-800 mx-0.5" />
 
         {/* Inline Formatting (B, I, U) */}
-        <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
+        <div className="flex-shrink-0 flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
           <button
             type="button"
             onClick={() => executeCommand('bold')}
@@ -211,10 +211,10 @@ export default function EducationalTextEditor({
           </button>
         </div>
 
-        <div className="h-5 w-px bg-slate-800 mx-0.5" />
+        <div className="h-5 w-px bg-slate-800 mx-0.5 flex-shrink-0" />
 
         {/* Study Highlight & Blockquote */}
-        <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
+        <div className="flex-shrink-0 flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
           <button
             type="button"
             onClick={applyHighlight}
@@ -235,10 +235,10 @@ export default function EducationalTextEditor({
           </button>
         </div>
 
-        <div className="h-5 w-px bg-slate-800 mx-0.5" />
+        <div className="h-5 w-px bg-slate-800 mx-0.5 flex-shrink-0" />
 
         {/* Alignment Controls */}
-        <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
+        <div className="flex-shrink-0 flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
           <button
             type="button"
             onClick={() => executeCommand('justifyLeft')}
@@ -273,10 +273,10 @@ export default function EducationalTextEditor({
           </button>
         </div>
 
-        <div className="h-5 w-px bg-slate-800 mx-0.5" />
+        <div className="h-5 w-px bg-slate-800 mx-0.5 flex-shrink-0" />
 
         {/* Lists (Ordered / Unordered) */}
-        <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
+        <div className="flex-shrink-0 flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
           <button
             type="button"
             onClick={() => executeCommand('insertUnorderedList')}
@@ -295,10 +295,10 @@ export default function EducationalTextEditor({
           </button>
         </div>
 
-        <div className="h-5 w-px bg-slate-800 mx-0.5" />
+        <div className="h-5 w-px bg-slate-800 mx-0.5 flex-shrink-0" />
 
         {/* Font Sizing */}
-        <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
+        <div className="flex-shrink-0 flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 gap-0.5">
           <button
             type="button"
             onClick={() => applyFontSize('small')}
@@ -325,20 +325,20 @@ export default function EducationalTextEditor({
           </button>
         </div>
 
-        <div className="h-5 w-px bg-slate-800 mx-0.5" />
+        <div className="h-5 w-px bg-slate-800 mx-0.5 flex-shrink-0" />
 
         {/* Clean / Reset Format */}
         <button
           type="button"
           onClick={() => executeCommand('removeFormat')}
-          className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+          className="flex-shrink-0 p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
           title="Clear Formatting"
         >
           <RemoveFormatting className="w-3.5 h-3.5" />
         </button>
 
         {/* Right side tools: Source Mode Toggle & Live Preview */}
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="flex-shrink-0 ml-auto flex items-center gap-1.5 pl-2">
           <button
             type="button"
             onClick={() => setIsSourceMode(!isSourceMode)}
@@ -368,14 +368,14 @@ export default function EducationalTextEditor({
       </div>
 
       {/* Editor Content Area (White Document Canvas) */}
-      <div className="p-4 sm:p-6 bg-slate-900/60 overflow-y-auto min-h-[360px] max-h-[580px] flex justify-center">
+      <div className="p-2 sm:p-5 bg-slate-900/60 overflow-y-auto min-h-[220px] sm:min-h-[360px] max-h-[580px] flex justify-center w-full min-w-0">
         {isSourceMode ? (
           <textarea
             value={internalHtml}
             onChange={handleSourceChange}
             placeholder="Enter raw HTML study notes..."
-            rows={14}
-            className="w-full bg-slate-950 text-slate-100 font-mono text-xs p-4 rounded-xl border border-slate-800 focus:outline-none focus:ring-2 focus:ring-[#005CBF] leading-relaxed"
+            rows={12}
+            className="w-full bg-slate-950 text-slate-100 font-mono text-xs p-3 sm:p-4 rounded-xl border border-slate-800 focus:outline-none focus:ring-2 focus:ring-[#005CBF] leading-relaxed box-border max-w-full"
           />
         ) : (
           <div
@@ -383,16 +383,16 @@ export default function EducationalTextEditor({
             contentEditable
             onInput={handleEditorInput}
             onBlur={handleEditorInput}
-            className="w-full max-w-3xl min-h-[320px] bg-white text-slate-900 rounded-xl p-6 sm:p-10 shadow-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CBF] leading-relaxed select-text font-sans text-sm sm:text-base break-words"
+            className="w-full max-w-3xl min-h-[200px] sm:min-h-[320px] bg-white text-slate-900 rounded-xl p-3.5 sm:p-8 sm:p-10 shadow-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#005CBF] leading-relaxed select-text font-sans text-xs sm:text-base break-words box-border max-w-full"
             style={{
-              minHeight: '340px'
+              minHeight: '220px'
             }}
           />
         )}
       </div>
 
       {/* Editor Footer Status Bar */}
-      <div className="bg-slate-950 px-4 py-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 select-none">
+      <div className="bg-slate-950 px-3 sm:px-4 py-2 border-t border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[10px] sm:text-[11px] text-slate-400 select-none w-full min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-slate-300">Notes Study Editor</span>
           <span>•</span>

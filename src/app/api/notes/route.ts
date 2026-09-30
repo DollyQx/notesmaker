@@ -22,7 +22,10 @@ const noteSchema = z.object({
   featured: z.boolean().default(false),
   isBestseller: z.boolean().default(false),
   contentType: z.enum(['PDF', 'TEXT']).default('PDF'),
-  textContent: z.string().optional()
+  textContent: z.string().optional(),
+  demoEnabled: z.boolean().default(false),
+  demoContent: z.string().optional(),
+  demoPdfUrl: z.string().optional()
 });
 
 export async function GET(request: NextRequest) {
@@ -109,6 +112,10 @@ export async function GET(request: NextRequest) {
       rating: n.rating,
       contentType: n.contentType || 'PDF',
       textContent: isAdmin ? n.textContent : null,
+      demoEnabled: !!n.demoEnabled,
+      demoContent: n.demoEnabled ? n.demoContent : (isAdmin ? n.demoContent : null),
+      demoPdfUrl: n.demoPdfUrl ? (n.demoEnabled ? `/api/notes/${n.id}/demo-pdf` : (isAdmin ? n.demoPdfUrl : null)) : null,
+      hasDemoPdf: !!n.demoPdfUrl,
       createdAt: n.createdAt.toISOString()
     }));
 
@@ -136,6 +143,13 @@ export async function POST(request: NextRequest) {
     const data = result.data;
 
     const sanitizedContent = data.textContent ? sanitizeTextContent(data.textContent) : null;
+    let sanitizedDemoContent = data.demoContent ? sanitizeTextContent(data.demoContent) : null;
+
+    // If demo is enabled for text note but no explicit demo content given, extract clean preview excerpt
+    if (data.demoEnabled && data.contentType === 'TEXT' && (!sanitizedDemoContent || !sanitizedDemoContent.trim()) && sanitizedContent) {
+      const paragraphs = sanitizedContent.split(/<\/p>/i);
+      sanitizedDemoContent = paragraphs.slice(0, 3).join('</p>') + (paragraphs.length > 3 ? '</p>' : '');
+    }
 
     if (data.contentType === 'TEXT' && (!sanitizedContent || !sanitizedContent.trim())) {
       return NextResponse.json(
@@ -174,6 +188,9 @@ export async function POST(request: NextRequest) {
         pages: computedPages,
         fileSize: data.contentType === 'TEXT' ? `${Math.max(1, Math.round(wordCount * 0.005))} KB Text Document` : data.fileSize,
         sampleText: data.sampleText,
+        demoEnabled: data.demoEnabled,
+        demoContent: data.demoEnabled ? sanitizedDemoContent : null,
+        demoPdfUrl: (data.contentType === 'PDF' && data.demoEnabled) ? data.demoPdfUrl : null,
         status: data.status,
         featured: data.featured,
         isBestseller: data.isBestseller

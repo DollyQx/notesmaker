@@ -11,9 +11,35 @@ import {
   getOrCreateDeviceId
 } from '@/lib/auth';
 
+const sanitizeMobileNumber = (val: string): string => {
+  let cleaned = (val || '').trim().replace(/[\s\-\(\)\.]/g, '');
+  if (cleaned.startsWith('+91')) {
+    cleaned = cleaned.substring(3);
+  } else if (cleaned.startsWith('91') && cleaned.length === 12) {
+    cleaned = cleaned.substring(2);
+  } else if (cleaned.startsWith('0') && cleaned.length === 11) {
+    cleaned = cleaned.substring(1);
+  }
+  return cleaned;
+};
+
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
+  mobileNumber: z
+    .string()
+    .trim()
+    .min(1, 'Mobile number is required')
+    .transform(sanitizeMobileNumber)
+    .refine((val) => /^\d+$/.test(val), {
+      message: 'Mobile number must contain numeric digits only'
+    })
+    .refine((val) => val.length === 10, {
+      message: 'Mobile number must be exactly 10 digits'
+    })
+    .refine((val) => /^[6-9]\d{9}$/.test(val), {
+      message: 'Please enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)'
+    }),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   college: z.string().optional()
 });
@@ -30,7 +56,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, email, password, college } = result.data;
+    const { name, email, password, college, mobileNumber } = result.data;
     const lowerEmail = email.toLowerCase().trim();
 
     // Check duplicate
@@ -54,7 +80,8 @@ export async function POST(request: NextRequest) {
         email: lowerEmail,
         password: hashedPassword,
         role: 'STUDENT',
-        college
+        college,
+        mobileNumber
       }
     });
 
@@ -93,7 +120,8 @@ export async function POST(request: NextRequest) {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        college: newUser.college
+        college: newUser.college,
+        mobileNumber: newUser.mobileNumber
       }
     });
 

@@ -6,24 +6,52 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
-import { BookOpen, Lock, Mail, User, Building, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
+import { BookOpen, Lock, Mail, User, Building, Phone, ArrowRight, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function StudentRegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
   const [college, setCollege] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setMobileNumber(digitsOnly);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    const cleanMobile = mobileNumber.trim();
+    if (!cleanMobile) {
+      setErrorMsg('Mobile Number is required');
+      return;
+    }
+
+    if (!/^\d+$/.test(cleanMobile)) {
+      setErrorMsg('Mobile Number must contain digits only');
+      return;
+    }
+
+    if (cleanMobile.length !== 10) {
+      setErrorMsg('Mobile Number must be exactly 10 digits');
+      return;
+    }
+
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      setErrorMsg('Please enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9)');
+      return;
+    }
+
     setIsSubmitting(true);
 
-    const res = await register(name, email, password, college);
+    const res = await register(name, email, password, cleanMobile, college);
     setIsSubmitting(false);
 
     if (res.success) {
@@ -87,6 +115,26 @@ export default function StudentRegisterPage() {
                   className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                Mobile Number
+              </label>
+              <div className="relative">
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  required
+                  maxLength={10}
+                  pattern="[0-9]*"
+                  value={mobileNumber}
+                  onChange={handleMobileChange}
+                  placeholder="Enter 10-digit mobile number"
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono tracking-wider"
+                />
+                <Phone className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 

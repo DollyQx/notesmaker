@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Note } from '@/types';
 import { useAuth } from '@/context/AuthContext';
-import { Star, FileText, CheckCircle2, ArrowRight, UserCheck, BookOpen } from 'lucide-react';
+import { Star, FileText, CheckCircle2, ArrowRight, UserCheck, BookOpen, Eye } from 'lucide-react';
 
 interface NoteCardProps {
   note: Note;
@@ -32,6 +32,11 @@ export default function NoteCard({ note }: NoteCardProps) {
           </span>
 
           <div className="flex items-center gap-1">
+            {note.demoEnabled && (
+              <span className="bg-emerald-500 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs uppercase tracking-wider">
+                Demo
+              </span>
+            )}
             {note.contentType === 'TEXT' && (
               <span className="bg-[#FC7600] text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-xs uppercase tracking-wider">
                 Text Note
@@ -121,13 +126,25 @@ export default function NoteCard({ note }: NoteCardProps) {
               <span>{note.contentType === 'TEXT' ? 'Read Note' : 'Read PDF'}</span>
             </Link>
           ) : (
-            <Link
-              href={`/notes/${note.id}`}
-              className="inline-flex items-center gap-1 bg-[#005CBF] hover:bg-[#004a9e] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-colors shadow-xs group-hover:translate-x-0.5"
-            >
-              <span>View Details</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex items-center gap-1.5">
+              {note.demoEnabled && (
+                <Link
+                  href={`/notes/${note.id}#demo-preview`}
+                  className="inline-flex items-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 text-xs font-bold px-2.5 py-2 rounded-xl transition-colors border border-amber-300/80"
+                  title="View Free Demo Preview"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Demo</span>
+                </Link>
+              )}
+              <Link
+                href={`/notes/${note.id}`}
+                className="inline-flex items-center gap-1 bg-[#005CBF] hover:bg-[#004a9e] text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-colors shadow-xs group-hover:translate-x-0.5"
+              >
+                <span>View Details</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
           )}
         </div>
       </div>

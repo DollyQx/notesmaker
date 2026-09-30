@@ -9,6 +9,7 @@ export interface UserSession {
   email: string;
   role: 'STUDENT' | 'ADMIN';
   college?: string;
+  mobileNumber?: string;
 }
 
 interface AuthContextType {
@@ -24,7 +25,7 @@ interface AuthContextType {
     error?: string;
   }>;
   verifyDevice: (email: string, otp: string, deviceId: string) => Promise<{ success: boolean; error?: string }>;
-  register: (name: string, email: string, password: string, college?: string) => Promise<{ success: boolean; error?: string }>;
+  register: (name: string, email: string, password: string, mobileNumber: string, college?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   unlockNote: (noteId: string) => Promise<{ success: boolean; error?: string }>;
   hasPurchased: (noteId: string) => boolean;
@@ -75,7 +76,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             name: data.user.name,
             email: data.user.email,
             role: data.user.role,
-            college: data.user.college
+            college: data.user.college,
+            mobileNumber: data.user.mobileNumber
           });
           await fetchPurchases();
         } else {
@@ -151,12 +153,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (name: string, email: string, password: string, college?: string) => {
+  const register = async (name: string, email: string, password: string, mobileNumber: string, college?: string) => {
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password, college })
+        body: JSON.stringify({ name, email, password, mobileNumber, college })
       });
 
       const data = await res.json();

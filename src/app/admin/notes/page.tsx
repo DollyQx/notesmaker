@@ -19,7 +19,8 @@ import {
   Globe,
   EyeOff,
   FileCheck,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
 import EducationalTextEditor from '@/components/admin/EducationalTextEditor';
@@ -49,6 +50,15 @@ export default function AdminNotesPage() {
   const [status, setStatus] = useState<'ACTIVE' | 'DRAFT' | 'ARCHIVED'>('ACTIVE');
   const [featured, setFeatured] = useState(false);
   const [isBestseller, setIsBestseller] = useState(false);
+
+  // Demo / Preview states
+  const [demoEnabled, setDemoEnabled] = useState<boolean>(false);
+  const [demoContent, setDemoContent] = useState<string>('');
+  const [demoPdfFileRef, setDemoPdfFileRef] = useState<string>('');
+  const [demoPdfFileName, setDemoPdfFileName] = useState<string>('');
+  const [isUploadingDemoPdf, setIsUploadingDemoPdf] = useState<boolean>(false);
+  const [demoPdfUploadMsg, setDemoPdfUploadMsg] = useState<string>('');
+  const [isDemoPreviewModalOpen, setIsDemoPreviewModalOpen] = useState<boolean>(false);
   
   // PDF File Upload states
   const [pdfFileRef, setPdfFileRef] = useState<string>('');
@@ -81,6 +91,11 @@ export default function AdminNotesPage() {
     setStatus('ACTIVE');
     setFeatured(false);
     setIsBestseller(false);
+    setDemoEnabled(false);
+    setDemoContent('');
+    setDemoPdfFileRef('');
+    setDemoPdfFileName('');
+    setDemoPdfUploadMsg('');
     setPdfFileRef('');
     setPdfFileName('');
     setUploadStatusMsg('');
@@ -105,6 +120,11 @@ export default function AdminNotesPage() {
     setStatus(note.status as any || 'ACTIVE');
     setFeatured(!!note.featured);
     setIsBestseller(!!note.isBestseller);
+    setDemoEnabled(!!note.demoEnabled);
+    setDemoContent(note.demoContent || '');
+    setDemoPdfFileRef(note.demoPdfUrl || '');
+    setDemoPdfFileName(note.demoPdfUrl ? note.demoPdfUrl.split('/').pop() || 'sample.pdf' : '');
+    setDemoPdfUploadMsg('');
     setPdfFileRef(note.pdfUrl || '');
     setPdfFileName(note.pdfUrl ? note.pdfUrl.split('/').pop() || 'document.pdf' : '');
     setUploadStatusMsg('');
@@ -163,6 +183,50 @@ export default function AdminNotesPage() {
     }
   };
 
+  const handleDemoPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
+      setErrorMsg('Only PDF documents (.pdf) are allowed for demo preview.');
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      setErrorMsg('Demo PDF file size exceeds 20 MB limit.');
+      return;
+    }
+
+    setIsUploadingDemoPdf(true);
+    setDemoPdfUploadMsg('Uploading safe sample/demo PDF...');
+    setErrorMsg('');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      setIsUploadingDemoPdf(false);
+
+      if (data.success) {
+        setDemoPdfFileRef(data.fileRef);
+        setDemoPdfFileName(data.originalName);
+        setDemoPdfUploadMsg(`Uploaded sample ${data.originalName} (${data.fileSize})`);
+      } else {
+        setErrorMsg(data.error || 'Failed to upload demo PDF');
+        setDemoPdfUploadMsg('');
+      }
+    } catch (err) {
+      setIsUploadingDemoPdf(false);
+      setErrorMsg('Network error while uploading demo PDF');
+      setDemoPdfUploadMsg('');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !categoryId || !subCategoryId) return;
@@ -210,7 +274,10 @@ export default function AdminNotesPage() {
         isBestseller,
         contentType,
         textContent: contentType === 'TEXT' ? textContent : editingNote.textContent,
-        pdfUrl: contentType === 'PDF' ? (pdfFileRef || editingNote.pdfUrl) : editingNote.pdfUrl
+        pdfUrl: contentType === 'PDF' ? (pdfFileRef || editingNote.pdfUrl) : editingNote.pdfUrl,
+        demoEnabled,
+        demoContent: demoEnabled ? (demoContent ? demoContent.trim() : '') : '',
+        demoPdfUrl: (contentType === 'PDF' && demoEnabled) ? (demoPdfFileRef || editingNote.demoPdfUrl || '') : ''
       });
     } else {
       res = await addNote({
@@ -229,7 +296,10 @@ export default function AdminNotesPage() {
         isBestseller,
         contentType,
         textContent: contentType === 'TEXT' ? textContent : undefined,
-        pdfUrl: contentType === 'PDF' ? (pdfFileRef || '') : undefined
+        pdfUrl: contentType === 'PDF' ? (pdfFileRef || '') : undefined,
+        demoEnabled,
+        demoContent: demoEnabled ? (demoContent ? demoContent.trim() : undefined) : undefined,
+        demoPdfUrl: (contentType === 'PDF' && demoEnabled) ? (demoPdfFileRef || undefined) : undefined
       });
     }
 
@@ -433,16 +503,21 @@ export default function AdminNotesPage() {
 
       </div>
 
-      {/* Note Form Modal */}
+      {/* Note Form Modal - Responsive Mobile First */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 shadow-2xl my-8">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-base flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-400" />
-                {editingNote ? 'Edit Note Publication' : 'Create & Publish New Note'}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-xs overflow-y-auto overscroll-contain">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-4xl w-full min-w-0 p-3.5 sm:p-6 md:p-8 space-y-4 sm:space-y-6 shadow-2xl my-auto sm:my-8 max-h-[96vh] overflow-y-auto overflow-x-hidden">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3 gap-2">
+              <h3 className="font-bold text-white text-sm sm:text-base flex items-center gap-2 truncate">
+                <FileText className="w-5 h-5 text-indigo-400 flex-shrink-0" />
+                <span className="truncate">{editingNote ? 'Edit Note Publication' : 'Create & Publish New Note'}</span>
               </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-white">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-slate-400 hover:text-white p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-slate-800 transition-colors flex-shrink-0"
+                aria-label="Close modal"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -450,7 +525,7 @@ export default function AdminNotesPage() {
             {errorMsg && (
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{errorMsg}</span>
+                <span className="break-words">{errorMsg}</span>
               </div>
             )}
 
@@ -461,29 +536,29 @@ export default function AdminNotesPage() {
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
                   Note Format / Content Type
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => setContentType('PDF')}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border text-xs font-bold transition-all ${
+                    className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl border text-xs font-bold transition-all min-h-[44px] ${
                       contentType === 'PDF'
                         ? 'bg-blue-600/20 border-blue-500 text-blue-400 shadow-sm shadow-blue-500/10'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                     }`}
                   >
-                    <FileText className="w-4 h-4" />
+                    <FileText className="w-4 h-4 flex-shrink-0" />
                     <span>PDF Note</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setContentType('TEXT')}
-                    className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border text-xs font-bold transition-all ${
+                    className={`flex items-center justify-center gap-2 py-3 px-3 rounded-xl border text-xs font-bold transition-all min-h-[44px] ${
                       contentType === 'TEXT'
                         ? 'bg-orange-500/20 border-orange-500 text-orange-400 shadow-sm shadow-orange-500/10'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                     }`}
                   >
-                    <FileCheck className="w-4 h-4" />
+                    <FileCheck className="w-4 h-4 flex-shrink-0" />
                     <span>Text Note</span>
                   </button>
                 </div>
@@ -491,21 +566,21 @@ export default function AdminNotesPage() {
 
               {/* PDF File Uploader Box */}
               {contentType === 'PDF' && (
-                <div className="bg-slate-950 border border-dashed border-slate-700 rounded-2xl p-5 text-center space-y-3">
+                <div className="bg-slate-950 border border-dashed border-slate-700 rounded-2xl p-4 sm:p-5 text-center space-y-3">
                   <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center mx-auto">
                     <Upload className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-white">Upload Private PDF Document</h4>
+                    <h4 className="text-xs font-bold text-white">Upload Private Master PDF Document</h4>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      Select note PDF file (Max 50MB). Stored securely outside public directory.
+                      Select note PDF file (Max 50MB). Stored securely in protected storage; students must purchase before access.
                     </p>
                   </div>
 
                   <div className="flex justify-center items-center gap-3">
-                    <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl transition-colors shadow-md inline-flex items-center gap-1.5">
+                    <label className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors shadow-md inline-flex items-center gap-1.5 min-h-[44px]">
                       {isUploadingPdf ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                      <span>{isUploadingPdf ? 'Uploading...' : 'Choose PDF File'}</span>
+                      <span>{isUploadingPdf ? 'Uploading...' : (pdfFileName ? 'Change PDF File' : 'Choose PDF File')}</span>
                       <input
                         type="file"
                         accept="application/pdf"
@@ -517,12 +592,12 @@ export default function AdminNotesPage() {
                   </div>
 
                   {uploadStatusMsg && (
-                    <div className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 py-1.5 px-3 rounded-lg border border-emerald-500/20 inline-block">
+                    <div className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 py-1.5 px-3 rounded-lg border border-emerald-500/20 inline-block break-all max-w-full">
                       ✓ {uploadStatusMsg}
                     </div>
                   )}
                   {pdfFileRef && (
-                    <div className="text-[10px] text-slate-500 font-mono truncate max-w-md mx-auto">
+                    <div className="text-[10px] text-slate-500 font-mono break-all max-w-md mx-auto">
                       Storage Ref: {pdfFileRef}
                     </div>
                   )}
@@ -532,14 +607,14 @@ export default function AdminNotesPage() {
               {/* Rich Text Editor Box */}
               {contentType === 'TEXT' && (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
                       Educational Text Note Content &amp; Formatting
                     </label>
                     <button
                       type="button"
                       onClick={() => setIsPreviewModalOpen(true)}
-                      className="text-xs text-[#005CBF] hover:text-blue-400 font-bold flex items-center gap-1 transition-colors"
+                      className="text-xs text-[#005CBF] hover:text-blue-400 font-bold flex items-center gap-1 transition-colors self-start sm:self-auto py-1"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>Preview Student View</span>
@@ -551,12 +626,158 @@ export default function AdminNotesPage() {
                     onPreview={() => setIsPreviewModalOpen(true)}
                     placeholder="Enter comprehensive study notes here..."
                   />
-                  <p className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-1">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <p className="text-[11px] text-slate-500 flex items-start gap-1.5 pt-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
                     <span>Educational Rich Text: Sanitized server-side. Formatted with watermark &amp; copy restrictions for students.</span>
                   </p>
                 </div>
               )}
+
+              {/* TASK 3: Note-Level Demo / Preview Setting */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                        Enable Demo / Preview
+                      </h4>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Define what students can see before purchasing. Paid files remain 100% protected.
+                    </p>
+                  </div>
+
+                  {/* Toggle: OFF / ON */}
+                  <div className="inline-flex rounded-xl bg-slate-900 border border-slate-800 p-1 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setDemoEnabled(false)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] ${
+                        !demoEnabled
+                          ? 'bg-slate-800 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      OFF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDemoEnabled(true)}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all min-h-[36px] ${
+                        demoEnabled
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      ON
+                    </button>
+                  </div>
+                </div>
+
+                {demoEnabled && (
+                  <div className="space-y-4 pt-3 border-t border-slate-800/80">
+                    {contentType === 'TEXT' ? (
+                      /* TEXT NOTE DEMO PREVIEW CONTROLS */
+                      <div className="space-y-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <label className="block text-xs font-bold text-amber-300 uppercase tracking-wider">
+                            Student Demo / Preview Text Content
+                          </label>
+                          <div className="flex items-center gap-2">
+                            {textContent && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  // Extract first 2 paragraphs or ~25% as starter demo content
+                                  const parts = textContent.split(/<\/p>/i);
+                                  const previewSample = parts.slice(0, 3).join('</p>') + (parts.length > 3 ? '</p>' : '');
+                                  setDemoContent(previewSample || textContent.slice(0, 500));
+                                }}
+                                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold underline"
+                              >
+                                Auto-fill from main note
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setIsDemoPreviewModalOpen(true)}
+                              className="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 py-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              <span>Preview Demo View</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <EducationalTextEditor
+                          value={demoContent}
+                          onChange={setDemoContent}
+                          placeholder="Type or paste sample chapter, key formulas, or free preview content for students..."
+                          onPreview={() => setIsDemoPreviewModalOpen(true)}
+                        />
+
+                        <p className="text-[11px] text-slate-400 flex items-start gap-1.5 pt-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                          <span>
+                            Students can view this educational preview without purchasing. Full note remains locked behind checkout.
+                          </span>
+                        </p>
+                      </div>
+                    ) : (
+                      /* PDF NOTE DEMO PREVIEW CONTROLS */
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
+                            Demo / Preview Summary &amp; Highlights (Non-PDF Excerpt)
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={demoContent}
+                            onChange={(e) => setDemoContent(e.target.value)}
+                            placeholder="Enter syllabus topics, chapter 1 key formulas, and high-yield preview highlights for students..."
+                            className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border"
+                          />
+                        </div>
+
+                        {/* Optional dedicated sample PDF */}
+                        <div className="bg-slate-900/90 border border-dashed border-slate-700 rounded-xl p-3.5 space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                              <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
+                                <FileText className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                                <span>Optional Sample / Demo PDF (Pages 1-3)</span>
+                              </h5>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                Upload a dedicated truncated sample PDF. Paid master PDF is never exposed.
+                              </p>
+                            </div>
+                            <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors border border-slate-700 inline-flex items-center gap-1 self-start sm:self-auto min-h-[38px]">
+                              {isUploadingDemoPdf ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                              <span>{isUploadingDemoPdf ? 'Uploading...' : (demoPdfFileName ? 'Change Demo PDF' : 'Choose Demo PDF')}</span>
+                              <input
+                                type="file"
+                                accept="application/pdf"
+                                onChange={handleDemoPdfUpload}
+                                disabled={isUploadingDemoPdf}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                          {demoPdfUploadMsg && (
+                            <p className="text-[11px] text-emerald-400 font-semibold break-all">✓ {demoPdfUploadMsg}</p>
+                          )}
+                          {demoPdfFileRef && (
+                            <p className="text-[10px] text-slate-500 font-mono break-all truncate">
+                              Demo PDF Storage Ref: {demoPdfFileRef}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
@@ -568,11 +789,11 @@ export default function AdminNotesPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Complete System Design & Microservices Notes"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[42px] box-border"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                     Category
@@ -580,7 +801,7 @@ export default function AdminNotesPage() {
                   <select
                     value={categoryId}
                     onChange={(e) => handleCategorySelectChange(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[42px] box-border"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -595,7 +816,7 @@ export default function AdminNotesPage() {
                   <select
                     value={subCategoryId}
                     onChange={(e) => setSubCategoryId(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[42px] box-border"
                   >
                     {filteredSubCategories.map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
@@ -604,7 +825,7 @@ export default function AdminNotesPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                     Selling Price (₹)
@@ -616,7 +837,7 @@ export default function AdminNotesPage() {
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="149"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold min-h-[42px] box-border"
                   />
                 </div>
 
@@ -629,12 +850,12 @@ export default function AdminNotesPage() {
                     value={originalPrice}
                     onChange={(e) => setOriginalPrice(e.target.value)}
                     placeholder="399"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[42px] box-border"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                     Author / Topper Ranker Name
@@ -645,7 +866,7 @@ export default function AdminNotesPage() {
                     value={author}
                     onChange={(e) => setAuthor(e.target.value)}
                     placeholder="Aman Sharma (AIR 12)"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[42px] box-border"
                   />
                 </div>
 
@@ -658,12 +879,12 @@ export default function AdminNotesPage() {
                     value={institute}
                     onChange={(e) => setInstitute(e.target.value)}
                     placeholder="IIT Delhi"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[42px] box-border"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
                     Page Count
@@ -674,7 +895,7 @@ export default function AdminNotesPage() {
                     value={pages}
                     onChange={(e) => setPages(e.target.value)}
                     placeholder="95"
-                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[42px] box-border"
                   />
                 </div>
 
@@ -685,7 +906,7 @@ export default function AdminNotesPage() {
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as any)}
-                    className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[42px] box-border"
                   >
                     <option value="ACTIVE">ACTIVE (Published in Store)</option>
                     <option value="DRAFT">DRAFT (Hidden from Students)</option>
@@ -696,54 +917,55 @@ export default function AdminNotesPage() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1">
-                  Full Description & Syllabus
+                  Full Description &amp; Syllabus
                 </label>
                 <textarea
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Detailed breakdown of topics, mind maps, formula sheets..."
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 box-border"
                 />
               </div>
 
-              <div className="flex items-center gap-6 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 font-medium">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 font-medium p-1 select-none">
                   <input
                     type="checkbox"
                     checked={featured}
                     onChange={(e) => setFeatured(e.target.checked)}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 bg-slate-950 border-slate-800"
+                    className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-950 border-slate-800"
                   />
                   <span>Mark as Featured</span>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 font-medium">
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 font-medium p-1 select-none">
                   <input
                     type="checkbox"
                     checked={isBestseller}
                     onChange={(e) => setIsBestseller(e.target.checked)}
-                    className="rounded text-amber-500 focus:ring-amber-500 bg-slate-950 border-slate-800"
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-slate-950 border-slate-800"
                   />
                   <span>Mark as Bestseller</span>
                 </label>
               </div>
 
-              <div className="pt-4 flex gap-2 border-t border-slate-800">
-                <button
-                  type="submit"
-                  disabled={isSubmitting || isUploadingPdf}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{editingNote ? 'Save Changes' : 'Publish Note Document'}</span>
-                </button>
+              {/* Action Buttons Stacking on Mobile */}
+              <div className="pt-4 flex flex-col-reverse sm:flex-row gap-2.5 sm:gap-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-5 py-3 rounded-xl"
+                  className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-5 py-3 rounded-xl transition-colors min-h-[44px] flex items-center justify-center"
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || isUploadingPdf || isUploadingDemoPdf}
+                  className="w-full sm:flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-3 px-4 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
+                >
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{editingNote ? 'Save Changes' : 'Publish Note Document'}</span>
                 </button>
               </div>
             </form>
@@ -753,26 +975,26 @@ export default function AdminNotesPage() {
 
       {/* Admin Student Preview Modal */}
       {isPreviewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-xs overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-5xl w-full p-4 sm:p-6 space-y-4 shadow-2xl my-6 flex flex-col max-h-[95vh]">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-5xl w-full min-w-0 p-3 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl my-auto max-h-[96vh] flex flex-col">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3 gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <Eye className="w-5 h-5 text-[#005CBF] flex-shrink-0" />
-                <h3 className="font-bold text-white text-base truncate max-w-md sm:max-w-xl">
+                <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-[#005CBF] flex-shrink-0" />
+                <h3 className="font-bold text-white text-xs sm:text-base truncate">
                   Admin Document Preview • {title || 'Untitled Note'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsPreviewModalOpen(false)}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors flex-shrink-0"
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors flex-shrink-0 min-h-[44px]"
               >
                 <X className="w-4 h-4" />
-                <span>Close Preview</span>
+                <span>Close</span>
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto rounded-2xl">
+            <div className="flex-1 overflow-y-auto rounded-2xl min-w-0 w-full">
               <TextNoteReader
                 note={{
                   id: editingNote?.id || 'admin-preview',
@@ -802,6 +1024,68 @@ export default function AdminNotesPage() {
                 }}
                 isPreview={true}
                 directContent={textContent || '<p>No content entered yet.</p>'}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Demo / Preview Modal */}
+      {isDemoPreviewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/85 backdrop-blur-xs overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl max-w-4xl w-full min-w-0 p-3 sm:p-6 space-y-3 sm:space-y-4 shadow-2xl my-auto max-h-[96vh] flex flex-col">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400 flex-shrink-0" />
+                <h3 className="font-bold text-white text-xs sm:text-base truncate">
+                  Student Demo View • {title || 'Untitled Note'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDemoPreviewModalOpen(false)}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1 transition-colors flex-shrink-0 min-h-[44px]"
+              >
+                <X className="w-4 h-4" />
+                <span>Close</span>
+              </button>
+            </div>
+
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs flex items-center gap-2">
+              <Sparkles className="w-4 h-4 flex-shrink-0" />
+              <span>Preview Mode: This is exactly what prospective students see before purchasing this note.</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto rounded-2xl min-w-0 w-full">
+              <TextNoteReader
+                note={{
+                  id: editingNote?.id || 'demo-preview',
+                  title: title || 'Educational Note Document',
+                  slug: 'demo-slug',
+                  description: description || 'Demo preview',
+                  price: parseFloat(price) || 0,
+                  originalPrice: parseFloat(originalPrice) || 0,
+                  pdfUrl: '',
+                  thumbnail: '',
+                  categoryId: categoryId || 'general',
+                  categoryName: categories.find((c) => c.id === categoryId)?.name || 'General',
+                  subCategoryId: subCategoryId || 'general',
+                  subCategoryName: subcategories.find((s) => s.id === subCategoryId)?.name || 'General',
+                  author: author || 'Contributor',
+                  institute: institute || 'Institute',
+                  pages: parseInt(pages) || 1,
+                  fileSize: 'Demo Excerpt',
+                  status: 'ACTIVE',
+                  featured: false,
+                  isBestseller: false,
+                  salesCount: 0,
+                  rating: 5,
+                  contentType: 'TEXT',
+                  textContent: demoContent || '<p>No demo content entered yet.</p>',
+                  createdAt: new Date().toISOString()
+                }}
+                isPreview={true}
+                directContent={demoContent || '<p>No demo content entered yet.</p>'}
               />
             </div>
           </div>

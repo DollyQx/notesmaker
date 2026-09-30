@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { Users, Search, GraduationCap, Mail, CheckCircle2, Loader2 } from 'lucide-react';
+import { Users, Search, GraduationCap, Mail, Phone, CheckCircle2, Loader2 } from 'lucide-react';
 
 interface StudentRecord {
   id: string;
   name: string;
   email: string;
+  mobileNumber?: string;
   college: string;
   joinedDate: string;
   purchasesCount: number;
@@ -105,6 +106,12 @@ export default function AdminStudentsPage() {
                           <Mail className="w-3 h-3 text-slate-400" />
                           <span>{stud.email}</span>
                         </div>
+                        {stud.mobileNumber && (
+                          <div className="text-[11px] text-slate-300 mt-0.5 flex items-center gap-1 font-mono">
+                            <Phone className="w-3 h-3 text-emerald-400" />
+                            <span>+91 {stud.mobileNumber}</span>
+                          </div>
+                        )}
                         <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1">
                           <GraduationCap className="w-3 h-3 text-indigo-400" />
                           <span>{stud.college || 'General Aspirant'}</span>

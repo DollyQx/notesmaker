@@ -28,6 +28,8 @@ export interface TokenPayload {
   role: 'STUDENT' | 'ADMIN';
   name: string;
   sessionId?: string;
+  college?: string;
+  mobileNumber?: string;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -157,7 +159,7 @@ export async function getAuthUser(request: NextRequest): Promise<TokenPayload | 
     // 4. Verify user exists in database
     const dbUser = await prisma.user.findUnique({
       where: { id: decoded.userId },
-      select: { id: true, email: true, name: true, role: true }
+      select: { id: true, email: true, name: true, role: true, college: true, mobileNumber: true }
     });
 
     if (!dbUser) return null;
@@ -167,7 +169,9 @@ export async function getAuthUser(request: NextRequest): Promise<TokenPayload | 
       email: dbUser.email,
       name: dbUser.name,
       role: dbUser.role as 'STUDENT' | 'ADMIN',
-      sessionId: decoded.sessionId
+      sessionId: decoded.sessionId,
+      college: dbUser.college || undefined,
+      mobileNumber: dbUser.mobileNumber || undefined
     };
   } catch (error) {
     return null;

@@ -7,6 +7,7 @@
     "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test src/__tests__/app.test.ts",
     "db:seed": "npx -y tsx src/lib/seed.ts"
   },
   "prisma": {

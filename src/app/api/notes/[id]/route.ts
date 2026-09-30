@@ -21,7 +21,10 @@ const updateNoteSchema = z.object({
   isBestseller: z.boolean().optional(),
   pdfUrl: z.string().optional(),
   contentType: z.enum(['PDF', 'TEXT']).optional(),
-  textContent: z.string().optional()
+  textContent: z.string().optional(),
+  demoEnabled: z.boolean().optional(),
+  demoContent: z.string().optional(),
+  demoPdfUrl: z.string().optional()
 });
 
 export async function GET(
@@ -70,6 +73,10 @@ export async function GET(
       note: {
         ...note,
         textContent: isAuthorized ? note.textContent : null,
+        demoEnabled: !!note.demoEnabled,
+        demoContent: (note.demoEnabled || isAuthorized) ? note.demoContent : null,
+        demoPdfUrl: note.demoPdfUrl ? (note.demoEnabled ? `/api/notes/${note.id}/demo-pdf` : (isAdmin ? note.demoPdfUrl : null)) : null,
+        hasDemoPdf: !!note.demoPdfUrl,
         isUnlocked: isAuthorized,
         categoryName: note.category?.name || 'General',
         subCategoryName: note.subCategory?.name || 'General'
@@ -100,6 +107,10 @@ export async function PUT(
     }
 
     const updateData: any = { ...result.data };
+
+    if (updateData.demoContent !== undefined && updateData.demoContent !== null) {
+      updateData.demoContent = sanitizeTextContent(updateData.demoContent);
+    }
 
     if (updateData.textContent !== undefined && updateData.textContent !== null) {
       const sanitized = sanitizeTextContent(updateData.textContent);

@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
               OR: [
                 { name: { contains: search } },
                 { email: { contains: search } },
-                { college: { contains: search } }
+                { college: { contains: search } },
+                { mobileNumber: { contains: search } }
               ]
             }
           : {})
@@ -37,6 +38,7 @@ export async function GET(request: NextRequest) {
         id: s.id,
         name: s.name,
         email: s.email,
+        mobileNumber: s.mobileNumber || null,
         college: s.college || 'General Aspirant',
         joinedDate: s.createdAt.toISOString().split('T')[0],
         purchasesCount: s.purchases.length,
