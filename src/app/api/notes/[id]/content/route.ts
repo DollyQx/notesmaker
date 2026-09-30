@@ -37,23 +37,7 @@ export async function GET(
       );
     }
 
-    // STEP 3: Verify Note is Published / Available (Admins bypass status check)
-    if (user.role !== 'ADMIN' && note.status !== 'ACTIVE') {
-      return NextResponse.json(
-        { success: false, error: 'Document not available or unlisted' },
-        { status: 404 }
-      );
-    }
-
-    // STEP 4: Verify Content Type is TEXT
-    if (note.contentType !== 'TEXT') {
-      return NextResponse.json(
-        { success: false, error: 'Requested document is not a text note' },
-        { status: 400 }
-      );
-    }
-
-    // STEP 5: Verify Student has a Successful Purchase for this note (Admins bypass purchase check)
+    // STEP 3: Verify Student Purchase or Admin Authorization
     if (user.role !== 'ADMIN') {
       const purchase = await prisma.purchase.findFirst({
         where: {
@@ -64,11 +48,25 @@ export async function GET(
       });
 
       if (!purchase) {
+        if (note.status !== 'ACTIVE') {
+          return NextResponse.json(
+            { success: false, error: 'Document not found or unavailable' },
+            { status: 404 }
+          );
+        }
         return NextResponse.json(
           { success: false, error: 'Forbidden: You must purchase this note before accessing the text content' },
           { status: 403 }
         );
       }
+    }
+
+    // STEP 4: Verify Content Type is TEXT
+    if (note.contentType !== 'TEXT') {
+      return NextResponse.json(
+        { success: false, error: 'Requested document is not a text note' },
+        { status: 400 }
+      );
     }
 
     // STEP 6: Return Protected Content

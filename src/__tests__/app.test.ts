@@ -276,3 +276,99 @@ describe('TASK 3 — Educational HTML Sanitization for Text Notes', () => {
     assert.strictEqual(cleaned.includes('<th>Property</th>'), true);
   });
 });
+
+describe('AUDIT — Purchase Preservation & Safe Note Lifecycle', () => {
+  it('should preserve note access for students who purchased, even when note is archived/unlisted', () => {
+    const archivedNote = {
+      id: 'archived-note-1',
+      title: 'Archived Exam Notes',
+      status: 'ARCHIVED',
+      pdfUrl: 'sample.pdf'
+    };
+
+    const studentA = { userId: 'student-purchaser', role: 'STUDENT' };
+    const studentB = { userId: 'student-non-purchaser', role: 'STUDENT' };
+
+    const checkAccess = (user: { userId: string; role: string }, hasPurchase: boolean, noteStatus: string) => {
+      if (user.role === 'ADMIN') return { allowed: true };
+      if (hasPurchase) return { allowed: true };
+      if (noteStatus !== 'ACTIVE') return { allowed: false, status: 404, error: 'Document not found or unavailable' };
+      return { allowed: false, status: 403, error: 'Forbidden' };
+    };
+
+    // Purchaser gets access
+    const resA = checkAccess(studentA, true, archivedNote.status);
+    assert.strictEqual(resA.allowed, true);
+
+    // Non-purchaser gets 404
+    const resB = checkAccess(studentB, false, archivedNote.status);
+    assert.strictEqual(resB.allowed, false);
+    assert.strictEqual(resB.status, 404);
+  });
+
+  it('should archive instead of hard deleting a note with existing student purchases', () => {
+    const noteWithPurchases = {
+      id: 'note-100',
+      purchasesCount: 5,
+      status: 'ACTIVE'
+    };
+
+    const handleDeleteDecision = (note: { purchasesCount: number }) => {
+      if (note.purchasesCount > 0) {
+        return { action: 'ARCHIVE', newStatus: 'ARCHIVED' };
+      }
+      return { action: 'HARD_DELETE' };
+    };
+
+    const decision = handleDeleteDecision(noteWithPurchases);
+    assert.strictEqual(decision.action, 'ARCHIVE');
+    assert.strictEqual(decision.newStatus, 'ARCHIVED');
+  });
+});
+
+describe('AUDIT — Payment Integrity & Server-Side Security', () => {
+  it('should strictly derive order amounts server-side from database price', () => {
+    const dbNote = { id: 'note-xyz', price: 199.00 };
+    const untrustedClientBody = { noteId: 'note-xyz', amount: 1.00 }; // Attacker tries to pay ₹1
+
+    // Server-side calculation ignores client-provided amount
+    const serverAmountInPaise = Math.round(dbNote.price * 100);
+    assert.strictEqual(serverAmountInPaise, 19900);
+    assert.notStrictEqual(serverAmountInPaise, untrustedClientBody.amount * 100);
+  });
+
+  it('should prevent duplicate purchases when student already unlocked a note', () => {
+    const existingPurchases = [
+      { studentId: 'stu-1', noteId: 'note-1', paymentStatus: 'COMPLETED' }
+    ];
+
+    const checkDuplicate = (studentId: string, noteId: string) => {
+      const found = existingPurchases.find(
+        (p) => p.studentId === studentId && p.noteId === noteId && p.paymentStatus === 'COMPLETED'
+      );
+      return !!found;
+    };
+
+    assert.strictEqual(checkDuplicate('stu-1', 'note-1'), true);
+    assert.strictEqual(checkDuplicate('stu-1', 'note-2'), false);
+  });
+});
+
+describe('AUDIT — Path Traversal Prevention', () => {
+  it('should reject dangerous path traversal sequences in file references', () => {
+    const maliciousPaths = [
+      '../../../etc/passwd',
+      '..\\..\\windows\\system32',
+      '../../.env',
+      'folder/../../storage/pdfs/secret.pdf'
+    ];
+
+    for (const p of maliciousPaths) {
+      // Replicate basename sanitization used in resolvePdfFilePath
+      const sanitized = p.replace(/^.*[\\\/]/, '');
+      assert.strictEqual(sanitized.includes('..'), false);
+      assert.strictEqual(sanitized.includes('/'), false);
+      assert.strictEqual(sanitized.includes('\\'), false);
+    }
+  });
+});

@@ -48,11 +48,6 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'Note not found' }, { status: 404 });
     }
 
-    // CRITICAL SECURITY RULE: Deny student access to unpublished notes
-    if (!isAdmin && note.status !== 'ACTIVE') {
-      return NextResponse.json({ success: false, error: 'Note not found or unavailable' }, { status: 404 });
-    }
-
     // Verify whether the requesting student has purchased this note
     let hasPurchased = false;
     if (user && !isAdmin) {
@@ -67,6 +62,11 @@ export async function GET(
     }
 
     const isAuthorized = isAdmin || hasPurchased;
+
+    // CRITICAL SECURITY RULE: Deny unauthenticated or unpurchased access to unlisted/draft notes
+    if (!isAuthorized && note.status !== 'ACTIVE') {
+      return NextResponse.json({ success: false, error: 'Note not found or unavailable' }, { status: 404 });
+    }
 
     return NextResponse.json({
       success: true,
@@ -175,10 +175,41 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const note = await prisma.note.findUnique({ where: { id } });
-    if (note && note.pdfUrl) {
-      // Clean up persistent storage object
+    const note = await prisma.note.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { purchases: true }
+        }
+      }
+    });
+
+    if (!note) {
+      return NextResponse.json({ success: false, error: 'Note not found' }, { status: 404 });
+    }
+
+    // PRESERVE PURCHASE HISTORY:
+    // If note has existing student purchases, archive it instead of hard deleting.
+    // This removes the note from public store while preserving financial transactions and student library access.
+    if (note._count.purchases > 0) {
+      await prisma.note.update({
+        where: { id },
+        data: { status: 'ARCHIVED' }
+      });
+
+      return NextResponse.json({
+        success: true,
+        archived: true,
+        message: `Note has ${note._count.purchases} student purchase(s). It has been ARCHIVED to preserve student library access and financial history.`
+      });
+    }
+
+    // Clean up persistent storage objects when hard deleting an unpurchased note
+    if (note.pdfUrl) {
       await deletePdfFromStorage(note.pdfUrl);
+    }
+    if (note.demoPdfUrl) {
+      await deletePdfFromStorage(note.demoPdfUrl);
     }
 
     await prisma.note.delete({ where: { id } });

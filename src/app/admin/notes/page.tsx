@@ -229,6 +229,7 @@ export default function AdminNotesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting || isUploadingPdf || isUploadingDemoPdf) return;
     if (!title.trim() || !categoryId || !subCategoryId) return;
 
     if (contentType === 'PDF') {
@@ -316,10 +317,10 @@ export default function AdminNotesPage() {
 
   const handleDelete = async (note: Note) => {
     if (confirm(`Delete note "${note.title}"?`)) {
-      const res = await deleteNote(note.id);
+      const res: any = await deleteNote(note.id);
       if (res.success) {
-        setSuccessMsg(`Note "${note.title}" deleted.`);
-        setTimeout(() => setSuccessMsg(''), 4000);
+        setSuccessMsg(res.message || `Note "${note.title}" deleted.`);
+        setTimeout(() => setSuccessMsg(''), 5000);
       } else {
         alert(res.error || 'Failed to delete note');
       }

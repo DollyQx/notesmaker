@@ -250,7 +250,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const resData = await res.json();
       if (resData.success) {
         await refreshNotes();
-        return { success: true };
+        return { success: true, message: resData.message, archived: resData.archived };
       } else {
         return { success: false, error: resData.error };
       }
