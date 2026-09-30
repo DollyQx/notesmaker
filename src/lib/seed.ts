@@ -42,7 +42,7 @@ export async function seedProductionDatabase() {
     await prisma.user.create({
       data: {
         id: 'admin-1',
-        name: 'Notes Study Admin',
+        name: 'Pooja',
         email: adminEmail,
         password: adminPasswordHash,
         role: 'ADMIN',
@@ -54,7 +54,7 @@ export async function seedProductionDatabase() {
     await prisma.user.update({
       where: { email: adminEmail },
       data: {
-        name: 'Notes Study Admin',
+        name: 'Pooja',
         password: adminPasswordHash,
         role: 'ADMIN'
       }

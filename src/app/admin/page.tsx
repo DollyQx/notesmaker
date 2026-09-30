@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/components/admin/AdminLayout';
+import { useAuth } from '@/context/AuthContext';
 import {
   FileText,
   Users,
@@ -46,6 +47,7 @@ interface RecentNote {
 }
 
 export default function AdminDashboardPage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentPurchases, setRecentPurchases] = useState<RecentPurchase[]>([]);
   const [recentNotes, setRecentNotes] = useState<RecentNote[]>([]);
@@ -74,10 +76,13 @@ export default function AdminDashboardPage() {
     fetchDashboardData();
   }, []);
 
+  const adminName = user?.name?.trim() || 'Pooja';
+  const greeting = `Welcome, ${adminName}`;
+
   return (
     <AdminLayout
-      title="Store Overview & Analytics"
-      subtitle="Real-time breakdown of registered students, digital notes, category structure, and revenue."
+      title={greeting}
+      subtitle="Store Overview & Analytics • Real-time breakdown of registered students, digital notes, and revenue."
       actionButton={{
         label: 'Refresh Dashboard',
         onClick: fetchDashboardData,

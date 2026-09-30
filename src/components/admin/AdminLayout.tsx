@@ -175,7 +175,7 @@ export default function AdminLayout({
         {/* Footer Admin Profile & Actions */}
         <div className="pt-4 border-t border-slate-800/80 space-y-3">
           <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
-            <p className="text-xs font-bold text-white truncate">{user?.name || 'Administrator'}</p>
+            <p className="text-xs font-bold text-white truncate">{user?.name || 'Pooja'}</p>
             <p className="text-[10px] text-slate-500 truncate font-mono">{user?.email}</p>
             <div className="pt-1 flex items-center gap-1 text-[9px] font-bold text-amber-400">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
